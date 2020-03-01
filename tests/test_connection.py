@@ -5,8 +5,6 @@
 import logging
 import time
 
-from apscheduler.schedulers.background import BackgroundScheduler
-
 from telegram_menu import AppMessage, ButtonType, MenuButton, MenuMessage, format_list_to_html, SessionManager
 
 # this key is for testing only, do not use it in production!
@@ -122,8 +120,7 @@ class StartMessage(MenuMessage):
 def test_client():
     """Run the client test."""
     init_logger()
-    scheduler = BackgroundScheduler()
-    manager = SessionManager(API_KEY, scheduler, StartMessage)
+    manager = SessionManager(API_KEY, StartMessage)
     time.sleep(30)
     manager.updater.stop()
 

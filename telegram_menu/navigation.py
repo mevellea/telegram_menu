@@ -20,8 +20,10 @@
 """Telegram menu navigation."""
 
 import logging
+import os
 
 from apscheduler.schedulers.background import BackgroundScheduler
+from telegram.error import Unauthorized
 from telegram.ext import CallbackQueryHandler, CommandHandler, Filters, MessageHandler, Updater
 
 from .messenger import TelegramMenuClient
@@ -44,12 +46,27 @@ class SessionManager:
 
     def __init__(self, api_key, start_message_class, start_message_args=None):
         """Init navigation dispatcher."""
+        if not isinstance(api_key, str):
+            raise AttributeError("API_KEY must be a string!")
+        if not issubclass(start_message_class, MenuMessage):
+            raise AttributeError("start_message_class must be a MenuMessage!")
+        if start_message_args is not None and not isinstance(start_message_args, list):
+            raise AttributeError("start_message_args is not a list!")
+
         self.updater = Updater(
             api_key,
             use_context=True,
             request_kwargs={"read_timeout": self.SESSION_READ_TIMEOUT, "connect_timeout": self.SESSION_CONNECT_TIMEOUT},
         )
         dispatcher = self.updater.dispatcher
+        bot = self.updater.bot
+
+        self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(logging.INFO)
+        try:
+            self.logger.info("Connected with Telegram bot %s (%s)", bot.name, bot.first_name)
+        except Unauthorized:
+            raise AttributeError("No bot found matching given API_KEY")
 
         self.api_key = api_key
         self.scheduler = BackgroundScheduler()
@@ -63,26 +80,23 @@ class SessionManager:
         dispatcher.add_handler(CallbackQueryHandler(self.button_inline_select_callback))
         dispatcher.add_error_handler(self.msg_error_handler)
 
-        self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(logging.INFO)
-        self.logger.info("Start Telegram dispatcher")
-
         self.scheduler.start()
         self.updater.start_polling()
 
     def send_start_message(self, update, _):
         """Start main message, app choice."""
-        chat_id = update.effective_chat.id
-        existing_session = self.get_session(chat_id)
+        chat = update.effective_chat
+        self.logger.info("Opening %s chat with user %s", chat.type, chat.first_name)
+        existing_session = self.get_session(chat.id)
         if existing_session is not None:
             return
 
-        session = NavigationManager(self.api_key, update.effective_chat.id, self.scheduler)
+        session = NavigationManager(self.api_key, chat.id, self.scheduler)
+        self.sessions.append(session)
         if self.start_message_args is not None:
             start_message = self.start_message_class(session, self.start_message_args)
         else:
             start_message = self.start_message_class(session)
-        self.sessions.append(session)
         session.goto_menu(start_message)
 
     def get_session(self, chat_id):
@@ -119,6 +133,8 @@ class NavigationManager:
     """Navigation manager for Telegram application."""
 
     MESSAGE_CHECK_TIMEOUT = 10
+
+    PICTURE_DEFAULT = "resources/stats_default.png"
 
     def __init__(self, api_key, chat_id, scheduler):
         """Init Navigation manager class."""
@@ -251,7 +267,11 @@ class NavigationManager:
 
         # send picture if custom label found
         if button_found.btype == ButtonType.PICTURE:
-            self.messenger.send_picture(self.chat_id, action_status)
+            picture_path = action_status
+            if picture_path is None or not os.path.isfile(picture_path):
+                picture_path = self.PICTURE_DEFAULT
+                self.logger.error("Picture not defined, replacing with default %s", picture_path)
+            self.messenger.send_picture(self.chat_id, picture_path)
             self.messenger.send_popup("Picture sent!", callback_id)
             return
         if button_found.btype == ButtonType.MESSAGE:

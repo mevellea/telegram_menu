@@ -22,6 +22,14 @@ call_pytest()
   pytest -s -W ignore::DeprecationWarning
 }
 
+call_coverage_report()
+{
+  coverage run --source=. -m pytest -s -W ignore::DeprecationWarning
+  coverage html
+  firefox htmlcov/index.html
+  coverage report
+}
+
 check_all()
 {
   start_venv

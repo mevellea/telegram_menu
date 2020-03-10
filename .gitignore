@@ -1,3 +1,8 @@
 __pycache__
 .tox
+.coverage
 *.egg-info
+*.egg
+build
+htmlcov
+coverage.json

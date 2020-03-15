@@ -262,6 +262,9 @@ class NavigationManager:
         label_message, label_action = callback_label.split(".")
         self.logger.info("Received action request from %s: %s", label_message, label_action)
         message = self.get_message(label_message)
+        if message is None:
+            self.logger.error("Message with label %s not found, return", label_message)
+            return
         button_found = message.get_button(label_action)
         action_status = button_found.callback()
 

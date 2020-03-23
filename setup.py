@@ -8,7 +8,7 @@ with open(os.path.join("README.md"), "r") as fh:
     LONG_DESCRIPTION = fh.read()
 
 __title__ = "telegram_menu"
-__version__ = "0.1.2"
+__version__ = "0.1.3"
 
 setup(
     name=__title__,
@@ -24,7 +24,7 @@ setup(
     install_requires=[],
     tests_require=["tox>=3.5.0,<4.0.0"],
     platforms=["any"],
-    keywords="heos",
+    keywords="telegram",
     zip_safe=False,
     classifiers=[
         "Development Status :: 4 - Beta",

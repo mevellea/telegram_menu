@@ -44,14 +44,10 @@ class SessionManager:
     SESSION_READ_TIMEOUT = 6
     SESSION_CONNECT_TIMEOUT = 7
 
-    def __init__(self, api_key, start_message_class, start_message_args=None):
+    def __init__(self, api_key):
         """Init navigation dispatcher."""
         if not isinstance(api_key, str):
             raise AttributeError("API_KEY must be a string!")
-        if not issubclass(start_message_class, MenuMessage):
-            raise AttributeError("start_message_class must be a MenuMessage!")
-        if start_message_args is not None and not isinstance(start_message_args, list):
-            raise AttributeError("start_message_args is not a list!")
 
         self.updater = Updater(
             api_key,
@@ -71,14 +67,23 @@ class SessionManager:
         self.api_key = api_key
         self.scheduler = BackgroundScheduler()
         self.sessions = []
-        self.start_message_class = start_message_class
-        self.start_message_args = start_message_args
+        self.start_message_class = None
+        self.start_message_args = None
 
         # on different commands - answer in Telegram
         dispatcher.add_handler(CommandHandler("start", self.send_start_message))
         dispatcher.add_handler(MessageHandler(Filters.text, self.button_select_callback))
         dispatcher.add_handler(CallbackQueryHandler(self.button_inline_select_callback))
         dispatcher.add_error_handler(self.msg_error_handler)
+
+    def start(self, start_message_class, start_message_args=None):
+        """Set start message and run dispatcher."""
+        self.start_message_class = start_message_class
+        self.start_message_args = start_message_args
+        if not issubclass(start_message_class, MenuMessage):
+            raise AttributeError("start_message_class must be a MenuMessage!")
+        if start_message_args is not None and not isinstance(start_message_args, list):
+            raise AttributeError("start_message_args is not a list!")
 
         self.scheduler.start()
         self.updater.start_polling()

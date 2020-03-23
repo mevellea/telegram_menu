@@ -120,7 +120,8 @@ class StartMessage(MenuMessage):
 def test_client():
     """Run the client test."""
     init_logger()
-    manager = SessionManager(API_KEY, StartMessage)
+    manager = SessionManager(API_KEY)
+    manager.start(StartMessage)
     time.sleep(30)
     manager.updater.stop()
 

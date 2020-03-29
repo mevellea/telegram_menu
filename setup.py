@@ -8,12 +8,12 @@ with open(os.path.join("README.md"), "r") as fh:
     LONG_DESCRIPTION = fh.read()
 
 __title__ = "telegram_menu"
-__version__ = "0.1.3"
+__version__ = "0.1.4"
 
 setup(
     name=__title__,
     version=__version__,
-    description="A python library to generate menus and messages for the Telegram Bot API",
+    description="A python library to generate menus and messages using Telegram Bot API",
     long_description=LONG_DESCRIPTION,
     long_description_content_type="text/markdown",
     url="https://github.com/mevellea/telegram_menu",

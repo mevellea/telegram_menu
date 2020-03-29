@@ -35,35 +35,64 @@ class ButtonType(Enum):
 
 
 class MenuButton:  # pylint: disable=too-few-public-methods
-    """Base button class, wrapper for label with callback."""
+    """Base button class, wrapper for label with _callback.
+    
+    Args:
+        label (str): button label
+        callback (obj, optional): method called on button selection
+        btype (ButtonType, optional): button type
+    
+    """
 
     def __init__(self, label, callback=None, btype=ButtonType.NOTIFICATION):
         """Init MenuButton class."""
         self.label = label
-        self.btype = btype
         self.callback = callback
+        self.btype = btype
 
     def __str__(self):
-        """Represent button as text."""
+        """Represent button as text.
+        
+        Returns:
+            str: button label
+        
+        """
         return self.label
 
 
 class BaseMessage:
-    """Base message class, buttons array and label updater."""
+    """Base message class, buttons array and label updater.
+    
+    Args:
+        navigation (telegram_menu.navigation.NavigationManager): navigation manager
+        label (str): message label
+    
+    """
 
     def __init__(self, navigation, label):
         """Init BaseMessage class."""
-        self.keyboard: [MenuButton] = []
+        self.keyboard = []
         self.label = label
-        self.is_inline = None
-        self.navigation = navigation
+        self.is_inline = False
+        self._navigation = navigation
 
         # previous values are used to check if it has changed, to skip sending identical message
-        self.keyboard_previous: [MenuButton] = []
-        self.content_previous = None
+        self._keyboard_previous: [MenuButton] = []
+        self._content_previous = None
 
-    def get_button(self, label: str):
-        """Get button matching given label."""
+    def get_button(self, label):
+        """Get button matching given label.
+        
+        Args:
+            label (str): message label
+    
+        Returns:
+            MenuButton: button matching label
+
+        Raises:
+            EnvironmentError: too many buttons matching label
+
+        """
         buttons = [x for x in self.keyboard if x.label == label]
         if len(buttons) > 1:
             raise EnvironmentError("More than one button with same label")
@@ -73,20 +102,35 @@ class BaseMessage:
 
     @staticmethod
     def emojize(emoji_name):
-        """Get utf-16 code for emoji.
-        
-        Find emoji list at this url: https://www.webfx.com/tools/emoji-cheat-sheet/
+        """Get utf-16 code for emoji, defined in https://www.webfx.com/tools/emoji-cheat-sheet/.
+
+        Args:
+            emoji_name (str): emoji label
+    
+        Returns:
+            str: emoji encoded as string
 
         """
         return emoji.emojize(f":{emoji_name}:", use_aliases=True)
 
     def add_button(self, label, callback=None):
-        """Add a button to keyboard attribute."""
+        """Add a button to keyboard attribute.
+
+        Args:
+            label (str): button label
+            callback (obj, optional): method called on button selection
+    
+        """
         self.keyboard.append(MenuButton(label, callback))
 
     def edit_message(self):
-        """Request navigation controller to update current message."""
-        return self.navigation.edit_message(self)
+        """Request navigation controller to update current message.
+        
+        Returns:
+            bool: True if message was edited
+        
+        """
+        return self._navigation.edit_message(self)
 
     def content_updater(self):
         """Update message content."""
@@ -94,12 +138,17 @@ class BaseMessage:
 
 
 class MenuMessage(BaseMessage):
-    """Base menu, wrapper for main keyboard."""
+    """Base menu, wrapper for main keyboard.
+    
+    Args:
+        navigation (telegram_menu.navigation.NavigationManager): navigation manager
+        label (str): message label
+    
+    """
 
     def __init__(self, navigation, label):
         """Init MenuMessage class."""
         BaseMessage.__init__(self, navigation, label)
-        self.is_inline = False
 
     def content_updater(self):
         """Update message content."""
@@ -107,16 +156,22 @@ class MenuMessage(BaseMessage):
 
 
 class AppMessage(BaseMessage):
-    """Base menu, wrapper for message with inline keyboard."""
+    """Base menu, wrapper for message with inline keyboard.
+    
+    Args:
+        navigation (telegram_menu.navigation.NavigationManager): navigation manager
+        label (str): message label
+    
+    """
 
     EXPIRING_DELAY = 120  # seconds
 
     def __init__(self, navigation, label):
         """Init AppMessage class."""
         BaseMessage.__init__(self, navigation, label)
-        self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(logging.DEBUG)
-        self.status = None
+        self._logger = logging.getLogger(__name__)
+        self._logger.setLevel(logging.DEBUG)
+        self._status = None
         self.home_after = False
         self.message_id = None
         self.is_inline = True
@@ -128,12 +183,17 @@ class AppMessage(BaseMessage):
         self.time_alive = datetime.datetime.now()
 
     def has_expired(self):
-        """Return True if expiry date of message has expired."""
+        """Return True if expiry date of message has expired.
+        
+        Returns:
+            bool: True if timer has expired
+        
+        """
         return self.time_alive + self.expiry_period < datetime.datetime.now()
 
     def kill_message(self):
         """Display status before message is destroyed."""
-        self.logger.debug("Removing message '%s' (%s)", self.label, self.message_id)
+        self._logger.debug("Removing message '%s' (%s)", self.label, self.message_id)
 
     def content_updater(self):
         """Update message content, virtual method."""
@@ -141,7 +201,12 @@ class AppMessage(BaseMessage):
 
 
 def format_list_to_html(args_array):
-    """Format array of strings in html, first element bold."""
+    """Format array of strings in html, first element bold.
+    
+    Args:
+        args_array (list): text content
+    
+    """
     content = ""
     for line in args_array:
         if isinstance(line, list):

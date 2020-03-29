@@ -27,7 +27,7 @@ from telegram.error import Unauthorized
 from telegram.ext import CallbackQueryHandler, CommandHandler, Filters, MessageHandler, Updater
 
 from .messenger import TelegramMenuClient
-from .models import AppMessage, BaseMessage, ButtonType, MenuMessage
+from .models import ButtonType, MenuMessage
 
 
 class SessionManager:
@@ -35,107 +35,146 @@ class SessionManager:
     
     Args:
         api_key (str): Bot API key
-        start_message_class (MenuMessage): class of the start menu message
-        start_message_args (array, optional): arguments passed to the start message
-            
+
+    Raises:
+        AttributeError: incorrect API key
+
     """
 
     # delays in seconds
-    SESSION_READ_TIMEOUT = 6
-    SESSION_CONNECT_TIMEOUT = 7
+    READ_TIMEOUT = 6
+    CONNECT_TIMEOUT = 7
 
     def __init__(self, api_key):
-        """Init navigation dispatcher."""
+        """Initialize SessionManager class."""
         if not isinstance(api_key, str):
             raise AttributeError("API_KEY must be a string!")
 
         self.updater = Updater(
             api_key,
             use_context=True,
-            request_kwargs={"read_timeout": self.SESSION_READ_TIMEOUT, "connect_timeout": self.SESSION_CONNECT_TIMEOUT},
+            request_kwargs={"read_timeout": self.READ_TIMEOUT, "connect_timeout": self.CONNECT_TIMEOUT},
         )
         dispatcher = self.updater.dispatcher
         bot = self.updater.bot
 
-        self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(logging.INFO)
+        self._logger = logging.getLogger(__name__)
+        self._logger.setLevel(logging.INFO)
         try:
-            self.logger.info("Connected with Telegram bot %s (%s)", bot.name, bot.first_name)
+            self._logger.info("Connected with Telegram bot %s (%s)", bot.name, bot.first_name)
         except Unauthorized:
             raise AttributeError("No bot found matching given API_KEY")
 
-        self.api_key = api_key
-        self.scheduler = BackgroundScheduler()
+        self._api_key = api_key
+        self._scheduler = BackgroundScheduler()
         self.sessions = []
-        self.start_message_class = None
-        self.start_message_args = None
+        self._start_message_class = None
+        self._start_message_args = None
 
         # on different commands - answer in Telegram
-        dispatcher.add_handler(CommandHandler("start", self.send_start_message))
-        dispatcher.add_handler(MessageHandler(Filters.text, self.button_select_callback))
-        dispatcher.add_handler(CallbackQueryHandler(self.button_inline_select_callback))
-        dispatcher.add_error_handler(self.msg_error_handler)
+        dispatcher.add_handler(CommandHandler("start", self._send_start_message))
+        dispatcher.add_handler(MessageHandler(Filters.text, self._button_select_callback))
+        dispatcher.add_handler(CallbackQueryHandler(self._button_inline_select_callback))
+        dispatcher.add_error_handler(self._msg_error_handler)
 
     def start(self, start_message_class, start_message_args=None):
-        """Set start message and run dispatcher."""
-        self.start_message_class = start_message_class
-        self.start_message_args = start_message_args
+        """Set start message and run dispatcher.
+
+        Args:
+            start_message_class (object): class derived from MenuMessage
+            start_message_args (array, optional): arguments passed to the start message
+
+        Raises:
+            AttributeError: incorrect StartMessage
+
+        """
+        self._start_message_class = start_message_class
+        self._start_message_args = start_message_args
         if not issubclass(start_message_class, MenuMessage):
             raise AttributeError("start_message_class must be a MenuMessage!")
         if start_message_args is not None and not isinstance(start_message_args, list):
             raise AttributeError("start_message_args is not a list!")
 
-        self.scheduler.start()
+        self._scheduler.start()
         self.updater.start_polling()
 
-    def send_start_message(self, update, _):
-        """Start main message, app choice."""
+    def _send_start_message(self, update, context):  # pylint: disable=unused-argument
+        """Start main message, app choice.
+        
+        Args:
+            update (telegram.update.Update): telegram updater
+            context (telegram.ext.callbackcontext.CallbackContext): _callback context
+        
+        """
         chat = update.effective_chat
-        self.logger.info("Opening %s chat with user %s", chat.type, chat.first_name)
-        existing_session = self.get_session(chat.id)
-        if existing_session is not None:
-            return
-
-        session = NavigationManager(self.api_key, chat.id, self.scheduler)
+        self._logger.info("Opening %s chat with user %s", chat.type, chat.first_name)
+        session = NavigationManager(self._api_key, chat.id, self._scheduler)
         self.sessions.append(session)
-        if self.start_message_args is not None:
-            start_message = self.start_message_class(session, self.start_message_args)
+        if self._start_message_args is not None:
+            start_message = self._start_message_class(session, self._start_message_args)
         else:
-            start_message = self.start_message_class(session)
+            start_message = self._start_message_class(session)
         session.goto_menu(start_message)
 
-    def get_session(self, chat_id):
-        """Get session from list."""
-        sessions = [x for x in self.sessions if x.chat_id == chat_id]
+    def get_session(self, chat_id=0):
+        """Get session from list.
+        
+        Args:
+            chat_id (int, optional): chat identifier
+        
+        Returns:
+            NavigationManager: the session found
+
+        """
+        sessions = [x for x in self.sessions if chat_id in (x.chat_id, 0)]
         if not sessions:
             return None
         return sessions[0]
 
-    def button_select_callback(self, update, _):
-        """Menu message main entry point."""
+    def _button_select_callback(self, update, context):
+        """Menu message main entry point.
+        
+        Args:
+            update (telegram.update.Update): telegram updater
+            context (telegram.ext.callbackcontext.CallbackContext): _callback context
+        
+        """
         session = self.get_session(update.effective_chat.id)
         if session is None:
-            self.send_start_message(update, _)
+            self._send_start_message(update, context)
             return
-        session.menu_button_callback(update.message.text)
+        session.select_menu_button(update.message.text)
 
-    def button_inline_select_callback(self, update, _):
-        """Execute callback of a message."""
+    def _button_inline_select_callback(self, update, context):
+        """Execute inline _callback of an AppMessage.
+        
+        Args:
+            update (telegram.update.Update): telegram updater
+            context (telegram.ext.callbackcontext.CallbackContext): _callback context
+        
+        """
         session = self.get_session(update.effective_chat.id)
         if session is None:
-            self.send_start_message(update, _)
+            self._send_start_message(update, context)
             return
         session.app_message_button_callback(
             update.callback_query.data, update.callback_query.id, update.callback_query.message.message_id
         )
 
-    def msg_error_handler(self, update, context):
+    def _msg_error_handler(self, update, context):
         """Log Errors caused by Updates."""
-        self.logger.warning('Update "%s" caused error "%s"', update, context.error)
+        self._logger.warning('Update "%s" caused error "%s"', update, context.error)
 
 
 class NavigationManager:
-    """Navigation manager for Telegram application."""
+    """Navigation manager for Telegram application.
+    
+    Args:
+        api_key (str): Bot API key
+        chat_id (int): chat identifier
+        scheduler (apscheduler.schedulers.background.BackgroundScheduler): scheduler
+
+    """
 
     MESSAGE_CHECK_TIMEOUT = 10
 
@@ -143,94 +182,137 @@ class NavigationManager:
 
     def __init__(self, api_key, chat_id, scheduler):
         """Init Navigation manager class."""
-        self.messenger = TelegramMenuClient(self, api_key)
+        self._messenger = TelegramMenuClient(self, api_key)
 
         self.chat_id = chat_id
 
-        self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(logging.INFO)
+        self._logger = logging.getLogger(__name__)
+        self._logger.setLevel(logging.INFO)
 
-        self.menu_queue: [MenuMessage] = []  # list of menus selected by user
-        self.message_queue: [MenuMessage] = []  # list of application messages sent
+        self._menu_queue: [MenuMessage] = []  # list of menus selected by user
+        self._message_queue: [MenuMessage] = []  # list of application messages sent
 
         # check if messages have expired every MESSAGE_CHECK_TIMEOUT seconds
         scheduler.add_job(
-            self.expiry_date_checker,
+            self._expiry_date_checker,
             "interval",
             id="state_nav_update",
             seconds=self.MESSAGE_CHECK_TIMEOUT,
             replace_existing=True,
         )
 
-    def expiry_date_checker(self):
+    def _expiry_date_checker(self):
         """Check expiry date of message and delete if expired."""
-        for message in self.message_queue:
+        for message in self._message_queue:
             if message.has_expired():
-                self.delete_message(message)
+                self._delete_message(message)
 
-    def delete_message(self, message):
-        """Delete a message, remove from queue."""
+    def _delete_message(self, message):
+        """Delete a message, remove from queue.
+    
+        Args:
+            message (AppMessage): message
+
+        """
         message.kill_message()
-        if message in self.message_queue:
-            self.message_queue.remove(message)
-            self.messenger.msg_delete(self.chat_id, message.message_id)
+        if message in self._message_queue:
+            self._message_queue.remove(message)
+            self._messenger.msg_delete(self.chat_id, message.message_id)
         del message
 
-    def goto_menu(self, menu: MenuMessage):
-        """Send menu message and add to queue."""
+    def goto_menu(self, menu):
+        """Send menu message and add to queue.
+    
+        Args:
+            menu (MenuMessage): message
+
+        Returns:
+            int: message identifier
+
+        """
         title = menu.content_updater()
-        self.logger.info("Opening menu %s", menu.label)
-        keyboard = self.messenger.gen_keyboard_content(menu.label, menu.keyboard, is_inline=False)
-        self.messenger.send_message(self.chat_id, title, keyboard)
-        self.menu_queue.append(menu)
+        self._logger.info("Opening menu %s", menu.label)
+        keyboard = self._messenger.gen_keyboard_content(menu.label, menu.keyboard, inlined=False)
+        msg_id = self._messenger.send_message(self.chat_id, title, keyboard)
+        self._menu_queue.append(menu)
+        return msg_id
 
     def goto_home(self):
-        """Go to home menu, empty menu_queue."""
-        menu_previous = self.menu_queue.pop()
-        while self.menu_queue:
-            menu_previous = self.menu_queue.pop()
-        self.goto_menu(menu_previous)
+        """Go to home menu, empty menu_queue.
 
-    def send_message(self, message: AppMessage, label: str):
-        """Send an application message."""
+        Returns:
+            int: message identifier
+
+        """
+        menu_previous = self._menu_queue.pop()
+        while self._menu_queue:
+            menu_previous = self._menu_queue.pop()
+        return self.goto_menu(menu_previous)
+
+    def _send_message(self, message, label):
+        """Send an application message.
+    
+        Args:
+            message (AppMessage): message
+            label (str): message label
+
+        Returns:
+            int: message identifier
+
+        """
         title = message.content_updater()
         # if message with this label already exist in message_queue, delete it and replace it
-        self.logger.info("Send message %s: %s", message.label, label)
+        self._logger.info("Send message %s: %s", message.label, label)
         if "_" not in message.label:
             message.label = f"{message.label}_{label}"
 
         # delete message if already displayed
         message_existing = self.get_message(message.label)
         if message_existing is not None:
-            self.delete_message(message)
+            self._delete_message(message)
 
         message.is_alive()
 
-        keyboard = self.messenger.gen_keyboard_content(message.label, message.keyboard, is_inline=True)
-        message.message_id = self.messenger.send_message(self.chat_id, title, keyboard)
-        self.message_queue.append(message)
+        keyboard = self._messenger.gen_keyboard_content(message.label, message.keyboard, inlined=True)
+        message.message_id = self._messenger.send_message(self.chat_id, title, keyboard)
+        self._message_queue.append(message)
 
         message.content_previous = title
         message.keyboard_previous = message.keyboard.copy()
+        return message.message_id
 
-    def edit_message(self, message: BaseMessage):
-        """Edit an inline message asynchronously."""
+    def edit_message(self, message):
+        """Edit an inline message asynchronously.
+    
+        Args:
+            message (BaseMessage): message
+
+        Returns:
+            bool: message was edited
+
+        """
         message = self.get_message(message.label)
         if message is None:
             return False
 
         # check if content and keyboard have changed since previous message
         content = message.content_updater()
-        if not self.message_check_changes(message, content):
+        if not self._message_check_changes(message, content):
             return False
 
         keyboard_format = TelegramMenuClient.gen_keyboard_content(message.label, message.keyboard, message.is_inline)
-        self.messenger.edit_message(self.chat_id, message.message_id, content, keyboard_format)
+        self._messenger.edit_message(self.chat_id, message.message_id, content, keyboard_format)
         return True
 
     @staticmethod
-    def message_check_changes(message, content):
-        """Check is message content and keyboard has changed since last edit."""
+    def _message_check_changes(message, content):
+        """Check is message content and keyboard has changed since last edit.
+    
+        Args:
+            message (AppMessage): message
+            content (str): message content
+
+        """
         content_identical = content == message.content_previous
         keyboard_identical = [x.label for x in message.keyboard_previous] == [x.label for x in message.keyboard]
         if content_identical and keyboard_identical:
@@ -239,36 +321,50 @@ class NavigationManager:
         message.keyboard_previous = message.keyboard.copy()
         return True
 
-    def menu_button_callback(self, label: str):
-        """Entry point to execute a callback after button selection."""
+    def select_menu_button(self, label):
+        """Select menu button using label.
+    
+        Args:
+            label (str): message label
+
+        Returns:
+            int: message identifier
+            
+        """
         if label == "Back":
-            menu_previous = self.menu_queue.pop()  # delete actual menu
-            if self.menu_queue:
-                menu_previous = self.menu_queue.pop()
-            self.goto_menu(menu_previous)
-            return
+            menu_previous = self._menu_queue.pop()  # delete actual menu
+            if self._menu_queue:
+                menu_previous = self._menu_queue.pop()
+            return self.goto_menu(menu_previous)
         if label == "Home":
-            self.goto_home()
-            return
-        for menu_item in self.menu_queue:
+            return self.goto_home()
+        for menu_item in self._menu_queue:
             button_found = menu_item.get_button(label)
             if button_found:
                 message_callback = button_found.callback
                 if message_callback.is_inline:
-                    self.send_message(message_callback, label)
+                    msg_id = self._send_message(message_callback, label)
                     if message_callback.home_after:
-                        self.goto_home()
+                        msg_id = self.goto_home()
                 else:
-                    self.goto_menu(message_callback)
-                return
+                    msg_id = self.goto_menu(message_callback)
+                return msg_id
+        return 0
 
-    def app_message_button_callback(self, callback_label: str, callback_id: str, message_id: str):
-        """Entry point to execute an action after message button selection."""
+    def app_message_button_callback(self, callback_label, callback_id, message_id):
+        """Entry point to execute an action after message button selection.
+    
+        Args:
+            callback_label (str): _callback label
+            callback_id (str): _callback identifier
+            message_id (str): message identifier
+
+        """
         label_message, label_action = callback_label.split(".")
-        self.logger.info("Received action request from %s: %s", label_message, label_action)
+        self._logger.info("Received action request from %s: %s", label_message, label_action)
         message = self.get_message(label_message)
         if message is None:
-            self.logger.error("Message with label %s not found, return", label_message)
+            self._logger.error("Message with label %s not found, return", label_message)
             return
         button_found = message.get_button(label_action)
         action_status = button_found.callback()
@@ -278,36 +374,37 @@ class NavigationManager:
             picture_path = action_status
             if picture_path is None or not os.path.isfile(picture_path):
                 picture_path = self.PICTURE_DEFAULT
-                self.logger.error("Picture not defined, replacing with default %s", picture_path)
-            self.messenger.send_picture(self.chat_id, picture_path)
-            self.messenger.send_popup("Picture sent!", callback_id)
+                self._logger.error("Picture not defined, replacing with default %s", picture_path)
+            self._messenger.send_picture(self.chat_id, picture_path)
+            self._messenger.send_popup("Picture sent!", callback_id)
             return
         if button_found.btype == ButtonType.MESSAGE:
-            self.messenger.send_message(self.chat_id, action_status, None)
-            self.messenger.send_popup("Message sent!", callback_id)
+            self._messenger.send_message(self.chat_id, action_status, None)
+            self._messenger.send_popup("Message sent!", callback_id)
             return
-        self.messenger.send_popup(action_status, callback_id)
+        self._messenger.send_popup(action_status, callback_id)
 
         # update expiry period
         message.is_alive()
 
         content = message.content_updater()
-        if not self.message_check_changes(message, content):
+        if not self._message_check_changes(message, content):
             return
 
         keyboard_format = TelegramMenuClient.gen_keyboard_content(message.label, message.keyboard, True)
-        self.messenger.edit_message(self.chat_id, message_id, content, keyboard_format)
+        self._messenger.edit_message(self.chat_id, message_id, content, keyboard_format)
 
-    def get_message(self, label_message: str):
-        """Get message from message_queue matching attribute label_message."""
-        buttons = [x for x in self.message_queue if x.label == label_message]
-        if not buttons:
-            return None
-        return buttons[0]
+    def get_message(self, label_message):
+        """Get message from message_queue matching attribute label_message.
+    
+        Args:
+            label_message (str): message label
 
-    def get_menu(self, label_menu: str):
-        """Get message from message_queue matching attribute label_message."""
-        buttons = [x for x in self.menu_queue if x.label == label_menu]
+        Returns:
+            BaseMessage: message found
+
+        """
+        buttons = [x for x in self._message_queue if x.label == label_message]
         if not buttons:
             return None
         return buttons[0]

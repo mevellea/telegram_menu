@@ -27,9 +27,6 @@ python setup.py install
 
 You first need to [create a Telegram bot](https://github.com/python-telegram-bot/python-telegram-bot/wiki/Introduction-to-the-API), then you can refer to sample code in ``tests\test_connection.py`` to run a complete use-case.
 
-
-
-
 Following code block creates a ``Hello, World!`` message:
 
 ```python
@@ -75,3 +72,17 @@ self.add_button("Display content", self.get_content, ButtonType.MESSAGE)
 # get_picture() is a class method which returns the path of a picture to display
 self.add_button("Show picture", self.get_picture, ButtonType.PICTURE)
 ```
+
+## Structure
+
+Classes in package ``telegram_menu`` are stored in 3 python files:
+
+* [navigation.py](telegram_menu/navigation.py): main interface, menu and message generation and management
+* [models.py](telegram_menu/models.py): menu and messages model, classes definition
+* [messenger.py](telegram_menu/messenger.py): interface with telegram APIs
+
+<img src="resources/packages.png" alt="drawing" width="400"/> 
+
+Following class diagram describes all public interfaces:
+
+<img src="resources/classes.png" alt="drawing" width="800"/> 

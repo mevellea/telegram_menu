@@ -4,17 +4,17 @@
 
 call_black()
 {
-  black . -l 120
+  black telegram_menu -l 120
 }
 
 call_pylama()
 {
-  pylama -o pylama.ini .
+  pylama -o pylama.ini telegram_menu
 }
 
 call_isort()
 {
-  isort -rc .
+  isort -rc telegram_menu
 }
 
 call_pytest()
@@ -24,10 +24,15 @@ call_pytest()
 
 call_coverage_report()
 {
-  coverage run --source=. -m pytest -s -W ignore::DeprecationWarning
+  coverage run --source=telegram_menu -m pytest -s -W ignore::DeprecationWarning
   coverage html
   firefox htmlcov/index.html
   coverage report
+}
+
+call_pyreverse()
+{
+  pyreverse --output=png --filter-mode=PUB_ONLY telegram_menu
 }
 
 check_all()

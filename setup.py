@@ -8,7 +8,7 @@ with open(os.path.join("README.md"), "r") as fh:
     LONG_DESCRIPTION = fh.read()
 
 __title__ = "telegram_menu"
-__version__ = "0.1.4"
+__version__ = "0.1.5"
 
 setup(
     name=__title__,

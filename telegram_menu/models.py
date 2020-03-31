@@ -25,6 +25,8 @@ from enum import Enum, auto
 
 import emoji
 
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
+
 
 class ButtonType(Enum):
     """Button type enumeration."""
@@ -136,6 +138,55 @@ class BaseMessage:
         """Update message content."""
         raise NotImplementedError
 
+    def gen_keyboard_content(self, inlined=None):
+        """Generate keyboard.
+            
+        Args:
+            inlined (bool, optional): inlined keyboard
+
+        Returns:
+            ReplyKeyboardMarkup, InlineKeyboardMarkup: generated keyboard
+
+        """
+        if inlined is None:
+            inlined = self.is_inline
+        keyboard_buttons = []
+        button_object = InlineKeyboardButton if inlined else KeyboardButton
+        if inlined:
+            buttons_per_line = 4 if len(self.keyboard) > 5 else 5
+        else:
+            buttons_per_line = 2
+        for button in self._get_array_from_list(self.keyboard, buttons_per_line):
+            keyboard_buttons.append(
+                [button_object(text=x.label, callback_data="%s.%s" % (self.label, x.label)) for x in button]
+            )
+        if inlined:
+            return InlineKeyboardMarkup(inline_keyboard=keyboard_buttons, resize_keyboard=True)
+        return ReplyKeyboardMarkup(keyboard=keyboard_buttons, resize_keyboard=True)
+
+    @staticmethod
+    def _get_array_from_list(buttons, cells_per_line):
+        """Convert ar array of MenuButton to a grid.
+        
+        Args:
+            buttons (list): list of MenuButton
+            cells_per_line (int): number of cells per line
+            
+        Returns:
+            list: list of list of MenuButton
+
+        """
+        array = []
+        array_row = []
+        for item in buttons:
+            array_row.append(item)
+            if len(array_row) % cells_per_line == 0:
+                array.append(array_row)
+                array_row = []
+        if array_row:
+            array.append(array_row)
+        return array
+
 
 class MenuMessage(BaseMessage):
     """Base menu, wrapper for main keyboard.
@@ -161,26 +212,30 @@ class AppMessage(BaseMessage):
     Args:
         navigation (telegram_menu.navigation.NavigationManager): navigation manager
         label (str): message label
+        expiry_period (datetime, optional): expiring period of the message
     
     """
 
     EXPIRING_DELAY = 120  # seconds
 
-    def __init__(self, navigation, label):
+    def __init__(self, navigation, label, expiry_period=None):
         """Init AppMessage class."""
         BaseMessage.__init__(self, navigation, label)
-        self._logger = logging.getLogger(__name__)
-        self._logger.setLevel(logging.DEBUG)
-        self._status = None
         self.home_after = False
         self.message_id = None
         self.is_inline = True
-        self.time_alive = None
-        self.expiry_period = datetime.timedelta(seconds=self.EXPIRING_DELAY)
+        self.expiry_period = (
+            expiry_period if expiry_period is not None else datetime.timedelta(seconds=self.EXPIRING_DELAY)
+        )
+
+        self._logger = logging.getLogger(__name__)
+        self._logger.setLevel(logging.DEBUG)
+        self._status = None
+        self._time_alive = None
 
     def is_alive(self):
         """Update message time stamp."""
-        self.time_alive = datetime.datetime.now()
+        self._time_alive = datetime.datetime.now()
 
     def has_expired(self):
         """Return True if expiry date of message has expired.
@@ -189,7 +244,7 @@ class AppMessage(BaseMessage):
             bool: True if timer has expired
         
         """
-        return self.time_alive + self.expiry_period < datetime.datetime.now()
+        return self._time_alive + self.expiry_period < datetime.datetime.now()
 
     def kill_message(self):
         """Display status before message is destroyed."""

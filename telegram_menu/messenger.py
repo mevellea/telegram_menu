@@ -96,7 +96,7 @@ class TelegramMenuClient:
         Args:
             chat_id (int): chat identifier
             message_id (int): message identifier
-            content (str): message content
+            message_content (str): message content
             keyboard (telegram.replykeyboardmarkup.ReplyKeyboardMarkup): keyboard
         
         Returns:

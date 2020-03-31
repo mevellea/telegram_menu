@@ -232,7 +232,7 @@ class NavigationManager:
         """
         title = menu.content_updater()
         self._logger.info("Opening menu %s", menu.label)
-        keyboard = self._messenger.gen_keyboard_content(menu.label, menu.keyboard, inlined=False)
+        keyboard = menu.gen_keyboard_content(inlined=False)
         msg_id = self._messenger.send_message(self.chat_id, title, keyboard)
         self._menu_queue.append(menu)
         return msg_id
@@ -273,7 +273,7 @@ class NavigationManager:
 
         message.is_alive()
 
-        keyboard = self._messenger.gen_keyboard_content(message.label, message.keyboard, inlined=True)
+        keyboard = message.gen_keyboard_content(inlined=True)
         message.message_id = self._messenger.send_message(self.chat_id, title, keyboard)
         self._message_queue.append(message)
 
@@ -300,7 +300,7 @@ class NavigationManager:
         if not self._message_check_changes(message, content):
             return False
 
-        keyboard_format = TelegramMenuClient.gen_keyboard_content(message.label, message.keyboard, message.is_inline)
+        keyboard_format = message.gen_keyboard_content()
         self._messenger.edit_message(self.chat_id, message.message_id, content, keyboard_format)
         return True
 
@@ -391,7 +391,7 @@ class NavigationManager:
         if not self._message_check_changes(message, content):
             return
 
-        keyboard_format = TelegramMenuClient.gen_keyboard_content(message.label, message.keyboard, True)
+        keyboard_format = message.gen_keyboard_content(True)
         self._messenger.edit_message(self.chat_id, message_id, content, keyboard_format)
 
     def get_message(self, label_message):

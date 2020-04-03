@@ -17,30 +17,17 @@ call_isort()
   isort -rc telegram_menu
 }
 
-call_pytest()
-{
-  pytest -s -W ignore::DeprecationWarning
-}
-
-call_coverage_report()
+call_coverage()
 {
   coverage run --source=telegram_menu -m pytest -s -W ignore::DeprecationWarning
   coverage html
-  firefox htmlcov/index.html
   coverage report
+  firefox htmlcov/index.html
 }
 
 call_pyreverse()
 {
   pyreverse --output=png --filter-mode=PUB_ONLY telegram_menu
-}
-
-check_all()
-{
-  start_venv
-  call_black
-  call_pylama
-  call_pytest
 }
 
 start_venv()
@@ -49,4 +36,13 @@ start_venv()
   VENV_PATH=~/$VENV_NAME
   echo "Activating virtual environment $VENV_PATH"
   source $VENV_PATH/bin/activate
+}
+
+check_all()
+{
+  start_venv
+  call_isort
+  call_black
+  call_pylama
+  call_coverage
 }

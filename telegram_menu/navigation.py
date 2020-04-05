@@ -163,7 +163,8 @@ class SessionManager:
 
     def _msg_error_handler(self, update, context):
         """Log Errors caused by Updates."""
-        self._logger.warning('Update %s - %s"', update.update_id, str(context.error))
+        error_message = str(context.error) if update is None else f"Update {update.update_id} - {str(context.error)}"
+        self._logger.error(error_message)
 
 
 class NavigationManager:

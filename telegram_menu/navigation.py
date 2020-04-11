@@ -23,10 +23,11 @@ import logging
 import os
 
 from apscheduler.schedulers.background import BackgroundScheduler
+from telegram import Bot, ChatAction
 from telegram.error import Unauthorized
 from telegram.ext import CallbackQueryHandler, CommandHandler, Filters, MessageHandler, Updater
+from telegram.utils.request import Request
 
-from .messenger import TelegramMenuClient
 from .models import ButtonType, MenuMessage
 
 
@@ -178,12 +179,14 @@ class NavigationManager:
     """
 
     MESSAGE_CHECK_TIMEOUT = 10
+    CONNECTION_POOL_SIZE = 8
 
     PICTURE_DEFAULT = "resources/stats_default.png"
 
     def __init__(self, api_key, chat_id, scheduler):
         """Init Navigation manager class."""
-        self._messenger = TelegramMenuClient(self, api_key)
+        request = Request(con_pool_size=self.CONNECTION_POOL_SIZE)
+        self._bot = Bot(token=api_key, request=request)
 
         self.chat_id = chat_id
 
@@ -218,7 +221,7 @@ class NavigationManager:
         message.kill_message()
         if message in self._message_queue:
             self._message_queue.remove(message)
-            self._messenger.msg_delete(self.chat_id, message.message_id)
+            self._bot.delete_message(chat_id=self.chat_id, message_id=message.message_id)
         del message
 
     def goto_menu(self, menu):
@@ -234,9 +237,10 @@ class NavigationManager:
         title = menu.content_updater()
         self._logger.info("Opening menu %s", menu.label)
         keyboard = menu.gen_keyboard_content(inlined=False)
-        msg_id = self._messenger.send_message(self.chat_id, title, keyboard)
+        message = self._bot.send_message(chat_id=self.chat_id, text=title, parse_mode="HTML", reply_markup=keyboard)
+
         self._menu_queue.append(menu)
-        return msg_id
+        return message.message_id
 
     def goto_home(self):
         """Go to home menu, empty menu_queue.
@@ -275,7 +279,8 @@ class NavigationManager:
         message.is_alive()
 
         keyboard = message.gen_keyboard_content(inlined=True)
-        message.message_id = self._messenger.send_message(self.chat_id, title, keyboard)
+        msg = self._bot.send_message(chat_id=self.chat_id, text=title, parse_mode="HTML", reply_markup=keyboard)
+        message.message_id = msg.message_id
         self._message_queue.append(message)
 
         message.content_previous = title
@@ -302,7 +307,13 @@ class NavigationManager:
             return False
 
         keyboard_format = message.gen_keyboard_content()
-        self._messenger.edit_message(self.chat_id, message.message_id, content, keyboard_format)
+        self._bot.edit_message_text(
+            text=content,
+            chat_id=self.chat_id,
+            message_id=message.message_id,
+            parse_mode="HTML",
+            reply_markup=keyboard_format,
+        )
         return True
 
     @staticmethod
@@ -368,6 +379,12 @@ class NavigationManager:
             self._logger.error("Message with label %s not found, return", label_message)
             return
         button_found = message.get_button(label_action)
+
+        if button_found.btype == ButtonType.PICTURE:
+            self._bot.send_chat_action(chat_id=self.chat_id, action=ChatAction.UPLOAD_PHOTO)
+        elif button_found.btype == ButtonType.MESSAGE:
+            self._bot.send_chat_action(chat_id=self.chat_id, action=ChatAction.TYPING)
+
         action_status = button_found.callback()
 
         # send picture if custom label found
@@ -376,14 +393,14 @@ class NavigationManager:
             if picture_path is None or not os.path.isfile(picture_path):
                 picture_path = self.PICTURE_DEFAULT
                 self._logger.error("Picture not defined, replacing with default %s", picture_path)
-            self._messenger.send_picture(self.chat_id, picture_path)
-            self._messenger.send_popup("Picture sent!", callback_id)
+            self._bot.send_photo(chat_id=self.chat_id, photo=open(picture_path, "rb"))
+            self._bot.answer_callback_query(callback_id, text="Picture sent!")
             return
         if button_found.btype == ButtonType.MESSAGE:
-            self._messenger.send_message(self.chat_id, action_status, None)
-            self._messenger.send_popup("Message sent!", callback_id)
+            self._bot.send_message(chat_id=self.chat_id, text=action_status, parse_mode="HTML", reply_markup=None)
+            self._bot.answer_callback_query(callback_id, text="Message sent!")
             return
-        self._messenger.send_popup(action_status, callback_id)
+        self._bot.answer_callback_query(callback_id, text=action_status)
 
         # update expiry period
         message.is_alive()
@@ -393,7 +410,9 @@ class NavigationManager:
             return
 
         keyboard_format = message.gen_keyboard_content(True)
-        self._messenger.edit_message(self.chat_id, message_id, content, keyboard_format)
+        self._bot.edit_message_text(
+            text=content, chat_id=self.chat_id, message_id=message_id, parse_mode="HTML", reply_markup=keyboard_format
+        )
 
     def get_message(self, label_message):
         """Get message from message_queue matching attribute label_message.

@@ -24,7 +24,6 @@ import logging
 from enum import Enum, auto
 
 import emoji
-
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
 
 

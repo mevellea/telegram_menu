@@ -160,7 +160,7 @@ class BaseMessage:
                 [button_object(text=x.label, callback_data="%s.%s" % (self.label, x.label)) for x in button]
             )
         if inlined:
-            return InlineKeyboardMarkup(inline_keyboard=keyboard_buttons, resize_keyboard=True)
+            return InlineKeyboardMarkup(inline_keyboard=keyboard_buttons, resize_keyboard=False)
         return ReplyKeyboardMarkup(keyboard=keyboard_buttons, resize_keyboard=True)
 
     @staticmethod

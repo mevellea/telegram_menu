@@ -45,11 +45,12 @@ class MenuButton:  # pylint: disable=too-few-public-methods
     
     """
 
-    def __init__(self, label, callback=None, btype=ButtonType.NOTIFICATION):
+    def __init__(self, label, callback=None, btype=ButtonType.NOTIFICATION, args=None):
         """Init MenuButton class."""
         self.label = label
         self.callback = callback
         self.btype = btype
+        self.args = args
 
     def __str__(self):
         """Represent button as text.

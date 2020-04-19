@@ -385,7 +385,10 @@ class NavigationManager:
         elif button_found.btype == ButtonType.MESSAGE:
             self._bot.send_chat_action(chat_id=self.chat_id, action=ChatAction.TYPING)
 
-        action_status = button_found.callback()
+        if button_found.args is not None:
+            action_status = button_found.callback(button_found.args)
+        else:
+            action_status = button_found.callback()
 
         # send picture if custom label found
         if button_found.btype == ButtonType.PICTURE:

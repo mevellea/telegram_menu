@@ -7,21 +7,22 @@ import logging
 import time
 import unittest
 
-from telegram_menu import AppMessage, ButtonType, MenuButton, MenuMessage, format_list_to_html, SessionManager
+from telegram_menu import BaseMessage, ButtonType, MenuButton, SessionManager
 
-# this key is for testing only, do not use it in production!
-API_KEY = "1137336406:AAEfshEFKovLe2ia_mq2KsgTuAgxazLM9s0"
+# this is a testing key, do not use it in production!
+API_KEY = "872134523:AAEe0_y78tnYYEWNUn2QRahnd48rjKhsxSA"
 
 
-class OptionsAppMessage(AppMessage):
+class OptionsAppMessage(BaseMessage):
     """Options app message, show an example of a button with inline buttons."""
 
     LABEL = "options"
 
     def __init__(self, navigation, update_callback):
         """Init OptionsAppMessage class."""
-        AppMessage.__init__(self, navigation, OptionsAppMessage.LABEL)
+        super().__init__(navigation, OptionsAppMessage.LABEL)
 
+        self.is_inline = True
         self.play_pause = True
         update_callback.append(self.app_update_display)
 
@@ -43,10 +44,10 @@ class OptionsAppMessage(AppMessage):
         return "option selected!"
 
     def text_button(self):
-        self.play_pause = not self.play_pause
         """Display any text data."""
+        self.play_pause = not self.play_pause
         data = [["text1", "value1"], ["text2", "value2"]]
-        return format_list_to_html(data)
+        return self.format_list_to_html(data)
 
     def picture_button(self):
         """Display a picture."""
@@ -56,7 +57,6 @@ class OptionsAppMessage(AppMessage):
     def picture_button2(self):
         """Display an undefined picture."""
         self.play_pause = not self.play_pause
-        return None
 
     def content_updater(self):
         """Update message content."""
@@ -73,31 +73,32 @@ class OptionsAppMessage(AppMessage):
         return "Status updated!"
 
 
-class ActionAppMessage(AppMessage):
+class ActionAppMessage(BaseMessage):
     """Single action message."""
 
     LABEL = "action"
 
     def __init__(self, navigation):
         """Init ActionAppMessage class."""
-        AppMessage.__init__(self, navigation, ActionAppMessage.LABEL)
+        super().__init__(navigation, ActionAppMessage.LABEL)
         # go back to home menu after executing the action
+        self.is_inline = True
         self.home_after = True
         self.expiry_period = datetime.timedelta(seconds=5)
 
     def content_updater(self):
         """Update message content."""
-        return f"<code>Action!</code>"
+        return "<code>Action!</code>"
 
 
-class SecondMenuMessage(MenuMessage):
+class SecondMenuMessage(BaseMessage):
     """Second example of menu."""
 
     LABEL = "second_message"
 
     def __init__(self, navigation, update_callback):
         """Init SecondMenuMessage class."""
-        MenuMessage.__init__(self, navigation, SecondMenuMessage.LABEL)
+        super().__init__(navigation, SecondMenuMessage.LABEL)
 
         action_message = ActionAppMessage(self._navigation)
         option_message = OptionsAppMessage(self._navigation, update_callback)
@@ -111,14 +112,14 @@ class SecondMenuMessage(MenuMessage):
         return "Second message"
 
 
-class StartMessage(MenuMessage):
+class StartMessage(BaseMessage):
     """Start menu, create all app sub-menus."""
 
     LABEL = "start"
 
     def __init__(self, navigation, update_callback):
         """Init StartMessage class."""
-        MenuMessage.__init__(self, navigation, StartMessage.LABEL)
+        super().__init__(navigation, StartMessage.LABEL)
 
         # define menu buttons
         action_message = ActionAppMessage(navigation)
@@ -136,7 +137,6 @@ class Test(unittest.TestCase):
 
     def test_wrong_api_key(self):
         """Test starting a client with wrong key."""
-
         with self.assertRaises(AttributeError):
             SessionManager(None)
 
@@ -148,11 +148,10 @@ class Test(unittest.TestCase):
 
     def test_bad_start_message(self):
         """Test starting a client with bad start message."""
-
         manager = SessionManager(API_KEY)
 
         with self.assertRaises(AttributeError):
-            manager.start(ActionAppMessage)
+            manager.start(MenuButton)
 
         with self.assertRaises(AttributeError):
             manager.start(StartMessage, 1)
@@ -172,7 +171,8 @@ class Test(unittest.TestCase):
             session = manager.get_session()
             time.sleep(1)
 
-        session.select_menu_button("Action")
+        msg_id = session.select_menu_button("Action")
+        self.assertGreater(msg_id, 1)
         time.sleep(0.5)
         session.select_menu_button("Action")
         time.sleep(0.5)

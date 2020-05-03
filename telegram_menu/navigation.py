@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 #
 # A python library for generating Telegram menus
 # Copyright (C) 2020
@@ -28,7 +28,7 @@ from telegram.error import Unauthorized
 from telegram.ext import CallbackQueryHandler, CommandHandler, Filters, MessageHandler, Updater
 from telegram.utils.request import Request
 
-from .models import ButtonType, MenuMessage
+from .models import BaseMessage, ButtonType
 
 
 class SessionManager:
@@ -82,7 +82,7 @@ class SessionManager:
         """Set start message and run dispatcher.
 
         Args:
-            start_message_class (object): class derived from MenuMessage
+            start_message_class (object): class derived from BaseMessage
             start_message_args (array, optional): arguments passed to the start message
 
         Raises:
@@ -91,8 +91,8 @@ class SessionManager:
         """
         self._start_message_class = start_message_class
         self._start_message_args = start_message_args
-        if not issubclass(start_message_class, MenuMessage):
-            raise AttributeError("start_message_class must be a MenuMessage!")
+        if not issubclass(start_message_class, BaseMessage):
+            raise AttributeError("start_message_class must be a BaseMessage!")
         if start_message_args is not None and not isinstance(start_message_args, list):
             raise AttributeError("start_message_args is not a list!")
 
@@ -147,7 +147,7 @@ class SessionManager:
         session.select_menu_button(update.message.text)
 
     def _button_inline_select_callback(self, update, context):
-        """Execute inline _callback of an AppMessage.
+        """Execute inline _callback of an BaseMessage.
         
         Args:
             update (telegram.update.Update): telegram updater
@@ -193,8 +193,8 @@ class NavigationManager:
         self._logger = logging.getLogger(__name__)
         self._logger.setLevel(logging.INFO)
 
-        self._menu_queue: [MenuMessage] = []  # list of menus selected by user
-        self._message_queue: [MenuMessage] = []  # list of application messages sent
+        self._menu_queue: [BaseMessage] = []  # list of menus selected by user
+        self._message_queue: [BaseMessage] = []  # list of application messages sent
 
         # check if messages have expired every MESSAGE_CHECK_TIMEOUT seconds
         scheduler.add_job(
@@ -215,7 +215,7 @@ class NavigationManager:
         """Delete a message, remove from queue.
     
         Args:
-            message (AppMessage): message
+            message (BaseMessage): message
 
         """
         message.kill_message()
@@ -228,7 +228,7 @@ class NavigationManager:
         """Send menu message and add to queue.
     
         Args:
-            menu (MenuMessage): message
+            menu (BaseMessage): message
 
         Returns:
             int: message identifier
@@ -258,7 +258,7 @@ class NavigationManager:
         """Send an application message.
     
         Args:
-            message (AppMessage): message
+            message (BaseMessage): message
             label (str): message label
 
         Returns:
@@ -321,7 +321,7 @@ class NavigationManager:
         """Check is message content and keyboard has changed since last edit.
     
         Args:
-            message (AppMessage): message
+            message (BaseMessage): message
             content (str): message content
 
         """
@@ -394,8 +394,9 @@ class NavigationManager:
         if button_found.btype == ButtonType.PICTURE:
             picture_path = action_status
             if picture_path is None or not os.path.isfile(picture_path):
-                picture_path = self.PICTURE_DEFAULT
-                self._logger.error("Picture not defined, replacing with default %s", picture_path)
+                dir_path = os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir))
+                picture_path = os.path.join(dir_path, self.PICTURE_DEFAULT)
+                self._logger.error("Picture not defined, replacing with default %s", self.PICTURE_DEFAULT)
             self._bot.send_photo(chat_id=self.chat_id, photo=open(picture_path, "rb"))
             self._bot.answer_callback_query(callback_id, text="Picture sent!")
             return

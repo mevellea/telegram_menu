@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 #
 # A python library for generating Telegram menus
 # Copyright (C) 2020
@@ -22,6 +22,8 @@
 import datetime
 import logging
 from enum import Enum, auto
+
+from abc import ABC, abstractmethod
 
 import emoji
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
@@ -52,17 +54,8 @@ class MenuButton:  # pylint: disable=too-few-public-methods
         self.btype = btype
         self.args = args
 
-    def __str__(self):
-        """Represent button as text.
-        
-        Returns:
-            str: button label
-        
-        """
-        return self.label
 
-
-class BaseMessage:
+class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
     """Base message class, buttons array and label updater.
     
     Args:
@@ -71,8 +64,13 @@ class BaseMessage:
     
     """
 
-    def __init__(self, navigation, label):
+    EXPIRING_DELAY = 120  # seconds
+
+    def __init__(self, navigation, label, expiry_period=None):
         """Init BaseMessage class."""
+        self._logger = logging.getLogger(__name__)
+        self._logger.setLevel(logging.DEBUG)
+
         self.keyboard = []
         self.label = label
         self.is_inline = False
@@ -81,6 +79,15 @@ class BaseMessage:
         # previous values are used to check if it has changed, to skip sending identical message
         self._keyboard_previous: [MenuButton] = []
         self._content_previous = None
+
+        self.home_after = False
+        self.message_id = None
+        self.expiry_period = (
+            expiry_period if expiry_period is not None else datetime.timedelta(seconds=self.EXPIRING_DELAY)
+        )
+
+        self._status = None
+        self._time_alive = None
 
     def get_button(self, label):
         """Get button matching given label.
@@ -134,6 +141,7 @@ class BaseMessage:
         """
         return self._navigation.edit_message(self)
 
+    @abstractmethod
     def content_updater(self):
         """Update message content."""
         raise NotImplementedError
@@ -187,52 +195,6 @@ class BaseMessage:
             array.append(array_row)
         return array
 
-
-class MenuMessage(BaseMessage):
-    """Base menu, wrapper for main keyboard.
-    
-    Args:
-        navigation (telegram_menu.navigation.NavigationManager): navigation manager
-        label (str): message label
-    
-    """
-
-    def __init__(self, navigation, label):
-        """Init MenuMessage class."""
-        BaseMessage.__init__(self, navigation, label)
-
-    def content_updater(self):
-        """Update message content."""
-        raise NotImplementedError
-
-
-class AppMessage(BaseMessage):
-    """Base menu, wrapper for message with inline keyboard.
-    
-    Args:
-        navigation (telegram_menu.navigation.NavigationManager): navigation manager
-        label (str): message label
-        expiry_period (datetime, optional): expiring period of the message
-    
-    """
-
-    EXPIRING_DELAY = 120  # seconds
-
-    def __init__(self, navigation, label, expiry_period=None):
-        """Init AppMessage class."""
-        BaseMessage.__init__(self, navigation, label)
-        self.home_after = False
-        self.message_id = None
-        self.is_inline = True
-        self.expiry_period = (
-            expiry_period if expiry_period is not None else datetime.timedelta(seconds=self.EXPIRING_DELAY)
-        )
-
-        self._logger = logging.getLogger(__name__)
-        self._logger.setLevel(logging.DEBUG)
-        self._status = None
-        self._time_alive = None
-
     def is_alive(self):
         """Update message time stamp."""
         self._time_alive = datetime.datetime.now()
@@ -250,29 +212,25 @@ class AppMessage(BaseMessage):
         """Display status before message is destroyed."""
         self._logger.debug("Removing message '%s' (%s)", self.label, self.message_id)
 
-    def content_updater(self):
-        """Update message content, virtual method."""
-        raise NotImplementedError
+    @staticmethod
+    def format_list_to_html(args_array):
+        """Format array of strings in html, first element bold.
 
+        Args:
+            args_array (list): text content
 
-def format_list_to_html(args_array):
-    """Format array of strings in html, first element bold.
-    
-    Args:
-        args_array (list): text content
-    
-    """
-    content = ""
-    for line in args_array:
-        if isinstance(line, list):
-            if line[0] != "":
-                content += f"<b>{line[0]}</b>"
+        """
+        content = ""
+        for line in args_array:
+            if isinstance(line, list):
+                if line[0] != "":
+                    content += f"<b>{line[0]}</b>"
+                    if line[1] != "":
+                        content += ": "
                 if line[1] != "":
-                    content += ": "
-            if line[1] != "":
-                content += line[1]
-        else:
-            content += f"<b>{line}</b>"
+                    content += line[1]
+            else:
+                content += f"<b>{line}</b>"
 
-        content += "\n"
-    return content
+            content += "\n"
+        return content

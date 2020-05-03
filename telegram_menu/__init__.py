@@ -19,15 +19,12 @@
 
 """Telegram interfaces."""
 
-from .models import AppMessage, BaseMessage, ButtonType, MenuButton, MenuMessage, format_list_to_html
+from .models import BaseMessage, ButtonType, MenuButton
 from .navigation import SessionManager
 
 __all__ = [
     "SessionManager",
-    "AppMessage",
     "BaseMessage",
     "ButtonType",
     "MenuButton",
-    "MenuMessage",
-    "format_list_to_html",
 ]

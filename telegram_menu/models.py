@@ -21,9 +21,8 @@
 
 import datetime
 import logging
-from enum import Enum, auto
-
 from abc import ABC, abstractmethod
+from enum import Enum, auto
 
 import emoji
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup

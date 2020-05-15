@@ -174,6 +174,8 @@ class Test(unittest.TestCase):
         msg_id = session.select_menu_button("Action")
         self.assertGreater(msg_id, 1)
         time.sleep(0.5)
+        manager.broadcast("Test message")
+        time.sleep(0.5)
         session.select_menu_button("Action")
         time.sleep(0.5)
         session.select_menu_button("Second menu")

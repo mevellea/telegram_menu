@@ -167,6 +167,11 @@ class SessionManager:
         error_message = str(context.error) if update is None else f"Update {update.update_id} - {str(context.error)}"
         self._logger.error(error_message)
 
+    def broadcast(self, message):
+        """Broadcast message to all sessions."""
+        for session in self.sessions:
+            session.send_message(message)
+
 
 class NavigationManager:
     """Navigation manager for Telegram application.
@@ -237,7 +242,7 @@ class NavigationManager:
         title = menu.content_updater()
         self._logger.info("Opening menu %s", menu.label)
         keyboard = menu.gen_keyboard_content(inlined=False)
-        message = self._bot.send_message(chat_id=self.chat_id, text=title, parse_mode="HTML", reply_markup=keyboard)
+        message = self.send_message(title, keyboard)
 
         self._menu_queue.append(menu)
         return message.message_id
@@ -254,7 +259,7 @@ class NavigationManager:
             menu_previous = self._menu_queue.pop()
         return self.goto_menu(menu_previous)
 
-    def _send_message(self, message, label):
+    def _send_app_message(self, message, label):
         """Send an application message.
     
         Args:
@@ -279,13 +284,26 @@ class NavigationManager:
         message.is_alive()
 
         keyboard = message.gen_keyboard_content(inlined=True)
-        msg = self._bot.send_message(chat_id=self.chat_id, text=title, parse_mode="HTML", reply_markup=keyboard)
+        msg = self.send_message(title, keyboard)
         message.message_id = msg.message_id
         self._message_queue.append(message)
 
         message.content_previous = title
         message.keyboard_previous = message.keyboard.copy()
         return message.message_id
+
+    def send_message(self, content, keyboard=None):
+        """Send a text message with html formatting.
+
+        Args:
+            content (str): message content
+            keyboard (ReplyKeyboardMarkup): message keyboard
+
+        Returns:
+            telegram.Message: message sent
+
+        """
+        return self._bot.send_message(chat_id=self.chat_id, text=content, parse_mode="HTML", reply_markup=keyboard)
 
     def edit_message(self, message):
         """Edit an inline message asynchronously.
@@ -355,7 +373,7 @@ class NavigationManager:
             if button_found:
                 message_callback = button_found.callback
                 if message_callback.is_inline:
-                    msg_id = self._send_message(message_callback, label)
+                    msg_id = self._send_app_message(message_callback, label)
                     if message_callback.home_after:
                         msg_id = self.goto_home()
                 else:
@@ -401,7 +419,7 @@ class NavigationManager:
             self._bot.answer_callback_query(callback_id, text="Picture sent!")
             return
         if button_found.btype == ButtonType.MESSAGE:
-            self._bot.send_message(chat_id=self.chat_id, text=action_status, parse_mode="HTML", reply_markup=None)
+            self.send_message(action_status)
             self._bot.answer_callback_query(callback_id, text="Message sent!")
             return
         self._bot.answer_callback_query(callback_id, text=action_status)

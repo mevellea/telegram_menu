@@ -8,7 +8,7 @@ with open(os.path.join("README.md"), "r") as fh:
     LONG_DESCRIPTION = fh.read()
 
 __title__ = "telegram_menu"
-__version__ = "0.1.12"
+__version__ = "0.1.13"
 
 setup(
     name=__title__,
@@ -35,5 +35,6 @@ setup(
         "Topic :: Home Automation",
         "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
     ],
 )

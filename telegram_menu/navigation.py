@@ -22,10 +22,12 @@
 import logging
 import os
 
+import telegram.ext
 from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.base import BaseScheduler
 from telegram import Bot, ChatAction
 from telegram.error import Unauthorized
-from telegram.ext import CallbackQueryHandler, CommandHandler, Filters, MessageHandler, Updater
+from telegram.ext import CallbackQueryHandler, CommandHandler, MessageHandler
 from telegram.utils.request import Request
 
 from .models import BaseMessage, ButtonType
@@ -36,9 +38,10 @@ class SessionManager:
     
     Args:
         api_key (str): Bot API key
+        scheduler (BaseScheduler, optional): scheduler
 
     Raises:
-        AttributeError: incorrect API key
+        AttributeError: incorrect API key or scheduler
 
     """
 
@@ -46,12 +49,19 @@ class SessionManager:
     READ_TIMEOUT = 6
     CONNECT_TIMEOUT = 7
 
-    def __init__(self, api_key):
+    def __init__(self, api_key, scheduler=None):
         """Initialize SessionManager class."""
         if not isinstance(api_key, str):
             raise AttributeError("API_KEY must be a string!")
 
-        self.updater = Updater(
+        if scheduler is not None:
+            if not isinstance(scheduler, BaseScheduler):
+                raise AttributeError("scheduler base class must be BaseScheduler!")
+            self._scheduler = scheduler
+        else:
+            self._scheduler = BackgroundScheduler()
+
+        self.updater = telegram.ext.Updater(
             api_key,
             use_context=True,
             request_kwargs={"read_timeout": self.READ_TIMEOUT, "connect_timeout": self.CONNECT_TIMEOUT},
@@ -67,14 +77,13 @@ class SessionManager:
             raise AttributeError("No bot found matching given API_KEY")
 
         self._api_key = api_key
-        self._scheduler = BackgroundScheduler()
         self.sessions = []
         self._start_message_class = None
         self._start_message_args = None
 
         # on different commands - answer in Telegram
         dispatcher.add_handler(CommandHandler("start", self._send_start_message))
-        dispatcher.add_handler(MessageHandler(Filters.text, self._button_select_callback))
+        dispatcher.add_handler(MessageHandler(telegram.ext.Filters.text, self._button_select_callback))
         dispatcher.add_handler(CallbackQueryHandler(self._button_inline_select_callback))
         dispatcher.add_error_handler(self._msg_error_handler)
 
@@ -96,7 +105,8 @@ class SessionManager:
         if start_message_args is not None and not isinstance(start_message_args, list):
             raise AttributeError("start_message_args is not a list!")
 
-        self._scheduler.start()
+        if not self._scheduler.running:
+            self._scheduler.start()
         self.updater.start_polling()
 
     def _send_start_message(self, update, context):  # pylint: disable=unused-argument
@@ -179,7 +189,7 @@ class NavigationManager:
     Args:
         api_key (str): Bot API key
         chat_id (int): chat identifier
-        scheduler (apscheduler.schedulers.background.BackgroundScheduler): scheduler
+        scheduler (BaseScheduler): scheduler
 
     """
 
@@ -415,7 +425,8 @@ class NavigationManager:
                 dir_path = os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir))
                 picture_path = os.path.join(dir_path, self.PICTURE_DEFAULT)
                 self._logger.error("Picture not defined, replacing with default %s", self.PICTURE_DEFAULT)
-            self._bot.send_photo(chat_id=self.chat_id, photo=open(picture_path, "rb"))
+            with open(picture_path, "rb") as file_h:
+                self._bot.send_photo(chat_id=self.chat_id, photo=file_h)
             self._bot.answer_callback_query(callback_id, text="Picture sent!")
             return
         if button_found.btype == ButtonType.MESSAGE:

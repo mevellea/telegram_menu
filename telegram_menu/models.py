@@ -25,7 +25,8 @@ from abc import ABC, abstractmethod
 from enum import Enum, auto
 
 import emoji
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
+import telegram
+from telegram import InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
 
 
 class ButtonType(Enum):
@@ -158,7 +159,7 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
         if inlined is None:
             inlined = self.is_inline
         keyboard_buttons = []
-        button_object = InlineKeyboardButton if inlined else KeyboardButton
+        button_object = telegram.InlineKeyboardButton if inlined else KeyboardButton
         if inlined:
             buttons_per_line = 4 if len(self.keyboard) > 5 else 5
         else:

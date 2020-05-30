@@ -20,9 +20,8 @@ class OptionsAppMessage(BaseMessage):
 
     def __init__(self, navigation, update_callback):
         """Init OptionsAppMessage class."""
-        super().__init__(navigation, OptionsAppMessage.LABEL)
+        super().__init__(navigation, OptionsAppMessage.LABEL, inlined=True)
 
-        self.is_inline = True
         self.play_pause = True
         update_callback.append(self.app_update_display)
 
@@ -80,11 +79,8 @@ class ActionAppMessage(BaseMessage):
 
     def __init__(self, navigation):
         """Init ActionAppMessage class."""
-        super().__init__(navigation, ActionAppMessage.LABEL)
-        # go back to home menu after executing the action
-        self.is_inline = True
-        self.home_after = True
-        self.expiry_period = datetime.timedelta(seconds=5)
+        super().__init__(navigation, ActionAppMessage.LABEL, expiry_period=datetime.timedelta(seconds=5),
+                         inlined=True, home_after=True)
 
     def content_updater(self):
         """Update message content."""

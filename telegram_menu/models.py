@@ -16,6 +16,7 @@
 #
 # You should have received a copy of the GNU Lesser Public License
 # along with this program.  If not, see [http://www.gnu.org/licenses/].
+# pylint: disable=too-many-arguments
 
 """Messages and navigation models."""
 
@@ -61,29 +62,34 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
     Args:
         navigation (telegram_menu.navigation.NavigationManager): navigation manager
         label (str): message label
-    
+        expiry_period (datetime.timedelta, optional): duration before the message is deleted
+        inlined (bool, optional): create an inlined message instead of a menu message
+        home_after (bool, optional): go back to home menu after executing the action
+
     """
 
     EXPIRING_DELAY = 120  # seconds
 
-    def __init__(self, navigation, label, expiry_period=None):
+    def __init__(self, navigation, label, expiry_period=None, inlined=False, home_after=False):
         """Init BaseMessage class."""
         self._logger = logging.getLogger(__name__)
         self._logger.setLevel(logging.DEBUG)
 
         self.keyboard = []
         self.label = label
-        self.is_inline = False
+        self.inlined = inlined
         self._navigation = navigation
 
         # previous values are used to check if it has changed, to skip sending identical message
         self._keyboard_previous: [MenuButton] = []
         self._content_previous = None
 
-        self.home_after = False
+        self.home_after = home_after
         self.message_id = None
-        self.expiry_period = (
-            expiry_period if expiry_period is not None else datetime.timedelta(seconds=self.EXPIRING_DELAY)
+        self._expiry_period = (
+            expiry_period
+            if isinstance(expiry_period, datetime.timedelta)
+            else datetime.timedelta(seconds=self.EXPIRING_DELAY)
         )
 
         self._status = None
@@ -157,7 +163,7 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
 
         """
         if inlined is None:
-            inlined = self.is_inline
+            inlined = self.inlined
         keyboard_buttons = []
         button_object = telegram.InlineKeyboardButton if inlined else KeyboardButton
         if inlined:
@@ -206,7 +212,7 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
             bool: True if timer has expired
         
         """
-        return self._time_alive + self.expiry_period < datetime.datetime.now()
+        return self._time_alive + self._expiry_period < datetime.datetime.now()
 
     def kill_message(self):
         """Display status before message is destroyed."""

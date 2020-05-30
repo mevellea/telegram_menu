@@ -382,7 +382,7 @@ class NavigationManager:
             button_found = menu_item.get_button(label)
             if button_found:
                 message_callback = button_found.callback
-                if message_callback.is_inline:
+                if message_callback.inlined:
                     msg_id = self._send_app_message(message_callback, label)
                     if message_callback.home_after:
                         msg_id = self.goto_home()

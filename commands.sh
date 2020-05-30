@@ -21,8 +21,10 @@ call_coverage()
 {
   coverage run --source=telegram_menu -m pytest -s -W ignore::DeprecationWarning
   coverage html
+  if [ "$2" = true ] ; then
+    firefox htmlcov/index.html
+  fi
   coverage report
-  firefox htmlcov/index.html
 }
 
 call_pyreverse()
@@ -38,7 +40,7 @@ start_venv()
   source $VENV_PATH/bin/activate
 }
 
-check_all()
+call_check()
 {
   start_venv
   call_isort

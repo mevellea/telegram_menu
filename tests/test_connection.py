@@ -94,7 +94,7 @@ class SecondMenuMessage(BaseMessage):
 
     def __init__(self, navigation, update_callback):
         """Init SecondMenuMessage class."""
-        super().__init__(navigation, SecondMenuMessage.LABEL)
+        super().__init__(navigation, SecondMenuMessage.LABEL, notification=False)
 
         action_message = ActionAppMessage(self._navigation)
         option_message = OptionsAppMessage(self._navigation, update_callback)
@@ -167,10 +167,12 @@ class Test(unittest.TestCase):
             session = manager.get_session()
             time.sleep(1)
 
+        manager.broadcast_message("Broadcast message")
+        manager.broadcast_picture("picture_path")
         msg_id = session.select_menu_button("Action")
         self.assertGreater(msg_id, 1)
         time.sleep(0.5)
-        manager.broadcast("Test message")
+        manager.broadcast_message("Test message")
         time.sleep(0.5)
         session.select_menu_button("Action")
         time.sleep(0.5)

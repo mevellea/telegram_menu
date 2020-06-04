@@ -77,7 +77,7 @@ class SessionManager:
             raise AttributeError("No bot found matching given API_KEY")
 
         self._api_key = api_key
-        self.sessions = []
+        self.sessions: [NavigationManager] = []
         self._start_message_class = None
         self._start_message_args = None
 
@@ -177,10 +177,15 @@ class SessionManager:
         error_message = str(context.error) if update is None else f"Update {update.update_id} - {str(context.error)}"
         self._logger.error(error_message)
 
-    def broadcast(self, message):
-        """Broadcast message to all sessions."""
+    def broadcast_message(self, message, notification=True):
+        """Broadcast simple message without keyboard markup to all sessions."""
         for session in self.sessions:
-            session.send_message(message)
+            session.send_message(message, notification=notification)
+
+    def broadcast_picture(self, picture_path, notification=True):
+        """Broadcast picture to all sessions."""
+        for session in self.sessions:
+            session.send_photo(picture_path, notification=notification)
 
 
 class NavigationManager:
@@ -224,9 +229,9 @@ class NavigationManager:
         """Check expiry date of message and delete if expired."""
         for message in self._message_queue:
             if message.has_expired():
-                self._delete_message(message)
+                self._delete_queued_message(message)
 
-    def _delete_message(self, message):
+    def _delete_queued_message(self, message):
         """Delete a message, remove from queue.
     
         Args:
@@ -239,22 +244,22 @@ class NavigationManager:
             self._bot.delete_message(chat_id=self.chat_id, message_id=message.message_id)
         del message
 
-    def goto_menu(self, menu):
+    def goto_menu(self, menu_message):
         """Send menu message and add to queue.
     
         Args:
-            menu (BaseMessage): message
+            menu_message (BaseMessage): message
 
         Returns:
             int: message identifier
 
         """
-        title = menu.content_updater()
-        self._logger.info("Opening menu %s", menu.label)
-        keyboard = menu.gen_keyboard_content(inlined=False)
-        message = self.send_message(title, keyboard)
+        title = menu_message.content_updater()
+        self._logger.info("Opening menu %s", menu_message.label)
+        keyboard = menu_message.gen_keyboard_content(inlined=False)
+        message = self.send_message(title, keyboard, notification=menu_message.notification)
 
-        self._menu_queue.append(menu)
+        self._menu_queue.append(menu_message)
         return message.message_id
 
     def goto_home(self):
@@ -289,12 +294,12 @@ class NavigationManager:
         # delete message if already displayed
         message_existing = self.get_message(message.label)
         if message_existing is not None:
-            self._delete_message(message)
+            self._delete_queued_message(message)
 
         message.is_alive()
 
         keyboard = message.gen_keyboard_content(inlined=True)
-        msg = self.send_message(title, keyboard)
+        msg = self.send_message(title, keyboard, message.notification)
         message.message_id = msg.message_id
         self._message_queue.append(message)
 
@@ -302,18 +307,25 @@ class NavigationManager:
         message.keyboard_previous = message.keyboard.copy()
         return message.message_id
 
-    def send_message(self, content, keyboard=None):
+    def send_message(self, content, keyboard=None, notification=True):
         """Send a text message with html formatting.
 
         Args:
             content (str): message content
-            keyboard (ReplyKeyboardMarkup): message keyboard
+            keyboard (ReplyKeyboardMarkup, optional): message keyboard
+            notification (bool, optional): send notification to user
 
         Returns:
             telegram.Message: message sent
 
         """
-        return self._bot.send_message(chat_id=self.chat_id, text=content, parse_mode="HTML", reply_markup=keyboard)
+        return self._bot.send_message(
+            chat_id=self.chat_id,
+            text=content,
+            parse_mode="HTML",
+            reply_markup=keyboard,
+            disable_notification=not notification,
+        )
 
     def edit_message(self, message):
         """Edit an inline message asynchronously.
@@ -421,16 +433,11 @@ class NavigationManager:
         # send picture if custom label found
         if button_found.btype == ButtonType.PICTURE:
             picture_path = action_status
-            if picture_path is None or not os.path.isfile(picture_path):
-                dir_path = os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir))
-                picture_path = os.path.join(dir_path, self.PICTURE_DEFAULT)
-                self._logger.error("Picture not defined, replacing with default %s", self.PICTURE_DEFAULT)
-            with open(picture_path, "rb") as file_h:
-                self._bot.send_photo(chat_id=self.chat_id, photo=file_h)
+            self.send_photo(picture_path, notification=button_found.notification)
             self._bot.answer_callback_query(callback_id, text="Picture sent!")
             return
         if button_found.btype == ButtonType.MESSAGE:
-            self.send_message(action_status)
+            self.send_message(action_status, notification=button_found.notification)
             self._bot.answer_callback_query(callback_id, text="Message sent!")
             return
         self._bot.answer_callback_query(callback_id, text=action_status)
@@ -446,6 +453,24 @@ class NavigationManager:
         self._bot.edit_message_text(
             text=content, chat_id=self.chat_id, message_id=message_id, parse_mode="HTML", reply_markup=keyboard_format
         )
+
+    def send_photo(self, picture_path, notification=True):
+        """Send a picture.
+
+        Args:
+            picture_path (str): path to picture
+            notification (bool, optional): send notification to user
+
+        Returns:
+            telegram.Message: message sent
+
+        """
+        if picture_path is None or not os.path.isfile(picture_path):
+            dir_path = os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir))
+            picture_path = os.path.join(dir_path, self.PICTURE_DEFAULT)
+            self._logger.error("Picture not defined, replacing with default %s", self.PICTURE_DEFAULT)
+        with open(picture_path, "rb") as file_h:
+            return self._bot.send_photo(chat_id=self.chat_id, photo=file_h, disable_notification=not notification)
 
     def get_message(self, label_message):
         """Get message from message_queue matching attribute label_message.

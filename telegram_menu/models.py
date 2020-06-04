@@ -45,15 +45,17 @@ class MenuButton:  # pylint: disable=too-few-public-methods
         label (str): button label
         callback (obj, optional): method called on button selection
         btype (ButtonType, optional): button type
-    
+        notification (bool, optional): send notification to user
+
     """
 
-    def __init__(self, label, callback=None, btype=ButtonType.NOTIFICATION, args=None):
+    def __init__(self, label, callback=None, btype=ButtonType.NOTIFICATION, args=None, notification=True):
         """Init MenuButton class."""
         self.label = label
         self.callback = callback
         self.btype = btype
         self.args = args
+        self.notification = notification
 
 
 class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
@@ -70,7 +72,7 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
 
     EXPIRING_DELAY = 120  # seconds
 
-    def __init__(self, navigation, label, expiry_period=None, inlined=False, home_after=False):
+    def __init__(self, navigation, label, expiry_period=None, inlined=False, home_after=False, notification=True):
         """Init BaseMessage class."""
         self._logger = logging.getLogger(__name__)
         self._logger.setLevel(logging.DEBUG)
@@ -78,6 +80,7 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
         self.keyboard = []
         self.label = label
         self.inlined = inlined
+        self.notification = notification
         self._navigation = navigation
 
         # previous values are used to check if it has changed, to skip sending identical message

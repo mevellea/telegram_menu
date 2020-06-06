@@ -79,8 +79,13 @@ class ActionAppMessage(BaseMessage):
 
     def __init__(self, navigation):
         """Init ActionAppMessage class."""
-        super().__init__(navigation, ActionAppMessage.LABEL, expiry_period=datetime.timedelta(seconds=5),
-                         inlined=True, home_after=True)
+        super().__init__(
+            navigation,
+            ActionAppMessage.LABEL,
+            expiry_period=datetime.timedelta(seconds=5),
+            inlined=True,
+            home_after=True,
+        )
 
     def content_updater(self):
         """Update message content."""
@@ -94,7 +99,9 @@ class SecondMenuMessage(BaseMessage):
 
     def __init__(self, navigation, update_callback):
         """Init SecondMenuMessage class."""
-        super().__init__(navigation, SecondMenuMessage.LABEL, notification=False)
+        super().__init__(
+            navigation, SecondMenuMessage.LABEL, notification=False, expiry_period=datetime.timedelta(seconds=5)
+        )
 
         action_message = ActionAppMessage(self._navigation)
         option_message = OptionsAppMessage(self._navigation, update_callback)
@@ -195,7 +202,7 @@ class Test(unittest.TestCase):
         # run the update callback to trigger edition
         update_callback[0]()
 
-        time.sleep(7)
+        time.sleep(15)
 
         manager.updater.stop()
 

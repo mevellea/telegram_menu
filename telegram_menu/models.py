@@ -70,7 +70,7 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
 
     """
 
-    EXPIRING_DELAY = 120  # seconds
+    EXPIRING_DELAY = 12  # minutes
 
     def __init__(self, navigation, label, expiry_period=None, inlined=False, home_after=False, notification=True):
         """Init BaseMessage class."""
@@ -92,7 +92,7 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
         self._expiry_period = (
             expiry_period
             if isinstance(expiry_period, datetime.timedelta)
-            else datetime.timedelta(seconds=self.EXPIRING_DELAY)
+            else datetime.timedelta(minutes=self.EXPIRING_DELAY)
         )
 
         self._status = None

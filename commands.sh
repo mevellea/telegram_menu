@@ -4,17 +4,18 @@
 
 call_black()
 {
-  black telegram_menu -l 120
+  black . -l 120
 }
 
 call_pylama()
 {
   pylama -o pylama.ini telegram_menu
+  pylama -o pylama.ini tests
 }
 
 call_isort()
 {
-  isort -rc telegram_menu
+  isort -rc .
 }
 
 call_coverage()

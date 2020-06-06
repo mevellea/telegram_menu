@@ -231,6 +231,10 @@ class NavigationManager:
             if message.has_expired():
                 self._delete_queued_message(message)
 
+        # go back to home after sub-menu message has expired
+        if len(self._menu_queue) >= 2 and self._menu_queue[-1].has_expired():
+            self.goto_home()
+
     def _delete_queued_message(self, message):
         """Delete a message, remove from queue.
     
@@ -258,7 +262,7 @@ class NavigationManager:
         self._logger.info("Opening menu %s", menu_message.label)
         keyboard = menu_message.gen_keyboard_content(inlined=False)
         message = self.send_message(title, keyboard, notification=menu_message.notification)
-
+        menu_message.is_alive()
         self._menu_queue.append(menu_message)
         return message.message_id
 

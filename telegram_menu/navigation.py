@@ -19,8 +19,10 @@
 
 """Telegram menu navigation."""
 
+import datetime
 import logging
 import os
+import time
 
 import telegram.ext
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -66,7 +68,6 @@ class SessionManager:
             use_context=True,
             request_kwargs={"read_timeout": self.READ_TIMEOUT, "connect_timeout": self.CONNECT_TIMEOUT},
         )
-        dispatcher = self.updater.dispatcher
         bot = self.updater.bot
 
         self._logger = logging.getLogger(__name__)
@@ -82,10 +83,11 @@ class SessionManager:
         self._start_message_args = None
 
         # on different commands - answer in Telegram
-        dispatcher.add_handler(CommandHandler("start", self._send_start_message))
-        dispatcher.add_handler(MessageHandler(telegram.ext.Filters.text, self._button_select_callback))
-        dispatcher.add_handler(CallbackQueryHandler(self._button_inline_select_callback))
-        dispatcher.add_error_handler(self._msg_error_handler)
+        self.updater.dispatcher.add_handler(CommandHandler("start", self._send_start_message))
+        self.updater.dispatcher.add_handler(MessageHandler(telegram.ext.Filters.text, self._button_select_callback))
+        self.updater.dispatcher.add_handler(CallbackQueryHandler(self._button_inline_select_callback))
+        self.updater.dispatcher.add_handler(telegram.ext.PollAnswerHandler(self._poll_answer))
+        self.updater.dispatcher.add_error_handler(self._msg_error_handler)
 
     def start(self, start_message_class, start_message_args=None):
         """Set start message and run dispatcher.
@@ -114,12 +116,11 @@ class SessionManager:
         
         Args:
             update (telegram.update.Update): telegram updater
-            context (telegram.ext.callbackcontext.CallbackContext): _callback context
+            context (telegram.ext.callbackcontext.CallbackContext): callback context
         
         """
         chat = update.effective_chat
-        self._logger.info("Opening %s chat with user %s", chat.type, chat.first_name)
-        session = NavigationManager(self._api_key, chat.id, self._scheduler)
+        session = NavigationManager(self._api_key, chat, self._scheduler)
         self.sessions.append(session)
         if self._start_message_args is not None:
             start_message = self._start_message_class(session, self._start_message_args)
@@ -147,7 +148,7 @@ class SessionManager:
         
         Args:
             update (telegram.update.Update): telegram updater
-            context (telegram.ext.callbackcontext.CallbackContext): _callback context
+            context (telegram.ext.callbackcontext.CallbackContext): callback context
         
         """
         session = self.get_session(update.effective_chat.id)
@@ -156,12 +157,24 @@ class SessionManager:
             return
         session.select_menu_button(update.message.text)
 
+    def _poll_answer(self, update, context):  # pylint: disable=unused-argument
+        """Entry point for poll selection.
+
+        Args:
+            update (telegram.update.Update): telegram updater
+            context (telegram.ext.callbackcontext.CallbackContext): callback context
+
+        """
+        session = next((x for x in self.sessions if x.user_name == update.effective_user.first_name), None)
+        if session:
+            session.poll_answer(update.poll_answer.option_ids[0])
+
     def _button_inline_select_callback(self, update, context):
-        """Execute inline _callback of an BaseMessage.
+        """Execute inline callback of an BaseMessage.
         
         Args:
             update (telegram.update.Update): telegram updater
-            context (telegram.ext.callbackcontext.CallbackContext): _callback context
+            context (telegram.ext.callbackcontext.CallbackContext): callback context
         
         """
         session = self.get_session(update.effective_chat.id)
@@ -188,30 +201,36 @@ class SessionManager:
             session.send_photo(picture_path, notification=notification)
 
 
-class NavigationManager:
+class NavigationManager:  # pylint: disable=too-many-instance-attributes
     """Navigation manager for Telegram application.
     
     Args:
         api_key (str): Bot API key
-        chat_id (int): chat identifier
+        chat (Chat): telegram Chat object
         scheduler (BaseScheduler): scheduler
 
     """
 
-    MESSAGE_CHECK_TIMEOUT = 10
+    POLL_DEADLINE = 10  # seconds
+    MESSAGE_CHECK_TIMEOUT = 10  # seconds
     CONNECTION_POOL_SIZE = 8
 
     PICTURE_DEFAULT = "resources/stats_default.png"
 
-    def __init__(self, api_key, chat_id, scheduler):
+    def __init__(self, api_key, chat, scheduler):
         """Init Navigation manager class."""
         request = Request(con_pool_size=self.CONNECTION_POOL_SIZE)
         self._bot = Bot(token=api_key, request=request)
+        self._poll = None
+        self._poll_calback = None
 
-        self.chat_id = chat_id
+        self.scheduler = scheduler
+        self.chat_id = chat.id
+        self.user_name = chat.first_name
 
         self._logger = logging.getLogger(__name__)
         self._logger.setLevel(logging.INFO)
+        self._logger.info("Opening chat with user %s", self.user_name)
 
         self._menu_queue: [BaseMessage] = []  # list of menus selected by user
         self._message_queue: [BaseMessage] = []  # list of application messages sent
@@ -411,8 +430,8 @@ class NavigationManager:
         """Entry point to execute an action after message button selection.
     
         Args:
-            callback_label (str): _callback label
-            callback_id (str): _callback identifier
+            callback_label (str): callback label
+            callback_id (str): callback identifier
             message_id (str): message identifier
 
         """
@@ -428,6 +447,11 @@ class NavigationManager:
             self._bot.send_chat_action(chat_id=self.chat_id, action=ChatAction.UPLOAD_PHOTO)
         elif button_found.btype == ButtonType.MESSAGE:
             self._bot.send_chat_action(chat_id=self.chat_id, action=ChatAction.TYPING)
+        elif button_found.btype == ButtonType.POLL:
+            self.send_poll(question=button_found.args[0], options=button_found.args[1])
+            self._poll_calback = button_found.callback
+            self._bot.answer_callback_query(callback_id, text="Select an answer...")
+            return
 
         if button_found.args is not None:
             action_status = button_found.callback(button_found.args)
@@ -490,3 +514,37 @@ class NavigationManager:
         if not buttons:
             return None
         return buttons[0]
+
+    def send_poll(self, question, options):
+        """Send poll to user with question and options."""
+        self._poll = self._bot.send_poll(
+            chat_id=self.chat_id, question=question, options=options, is_anonymous=False, open_period=self.POLL_DEADLINE
+        )
+        self.scheduler.add_job(
+            self.poll_timeout,
+            "date",
+            id=f"poll_{self.user_name}",
+            next_run_time=datetime.datetime.now() + datetime.timedelta(seconds=self.POLL_DEADLINE + 1),
+            replace_existing=True,
+        )
+
+    def poll_timeout(self):
+        """Run when poll timeout has expired."""
+        try:
+            if self._poll is not None:
+                self._bot.delete_message(chat_id=self.chat_id, message_id=self._poll.message_id)
+        except telegram.error.BadRequest:
+            self._logger.error("Poll message %s already deleted", self._poll.message_id)
+
+    def poll_answer(self, answer):
+        """Run when poll message is received."""
+        self._logger.info(
+            "%s's answer to question '%s' is '%s'",
+            self.user_name,
+            self._poll.poll.question,
+            self._poll.poll.options[answer].text,
+        )
+        self._poll_calback(self._poll.poll.options[answer].text)
+        time.sleep(1)
+        self._bot.delete_message(chat_id=self.chat_id, message_id=self._poll.message_id)
+        self._poll = None

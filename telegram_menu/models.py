@@ -36,6 +36,7 @@ class ButtonType(Enum):
     NOTIFICATION = auto()
     MESSAGE = auto()
     PICTURE = auto()
+    POLL = auto()
 
 
 class MenuButton:  # pylint: disable=too-few-public-methods

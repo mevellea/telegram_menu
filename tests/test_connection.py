@@ -57,8 +57,15 @@ class OptionsAppMessage(BaseMessage):
         """Display an undefined picture."""
         self.play_pause = not self.play_pause
 
+    @staticmethod
+    def action_poll(poll_answer):
+        """Display poll answer."""
+        logging.info("Answer is %s", poll_answer)
+
     def content_updater(self):
         """Update message content."""
+        poll_question = "Select one option:"
+        poll_choices = ["Option1", "Option2", "Option3", "Option4", "Option5", "Option6", "Option7", "Option8"]
         play_pause_button = "play_button" if self.play_pause else "pause_button"
         self.keyboard = [
             MenuButton(self.emojize(play_pause_button), self.action_button),
@@ -67,7 +74,7 @@ class OptionsAppMessage(BaseMessage):
             MenuButton(self.emojize("chart_with_downwards_trend"), self.picture_button2, ButtonType.PICTURE),
             MenuButton(self.emojize("door"), self.text_button, ButtonType.MESSAGE),
             MenuButton(self.emojize("speaker_medium_volume"), self.action_button),
-            MenuButton(self.emojize("speaker_high_volume"), self.action_button),
+            MenuButton(self.emojize("question"), self.action_poll, ButtonType.POLL, args=[poll_question, poll_choices]),
         ]
         return "Status updated!"
 
@@ -202,7 +209,7 @@ class Test(unittest.TestCase):
         # run the update callback to trigger edition
         update_callback[0]()
 
-        time.sleep(15)
+        time.sleep(200)
 
         manager.updater.stop()
 

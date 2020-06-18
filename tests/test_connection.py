@@ -116,6 +116,13 @@ class SecondMenuMessage(BaseMessage):
         self.add_button("Action", action_message)
         self.add_button("Back")
         self.add_button("Home")
+        update_callback.append(self.app_update_display)
+
+    def app_update_display(self):
+        """Update message content when callback triggered."""
+        edited = self.edit_message()
+        if edited:
+            self.is_alive()
 
     def content_updater(self):
         """Update message content."""
@@ -205,9 +212,11 @@ class Test(unittest.TestCase):
         session.select_menu_button("Second menu")
         time.sleep(0.5)
         session.select_menu_button("Option")
+        time.sleep(0.5)
 
         # run the update callback to trigger edition
-        update_callback[0]()
+        for callback in update_callback:
+            callback()
 
         time.sleep(20)
 

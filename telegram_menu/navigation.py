@@ -358,6 +358,10 @@ class NavigationManager:  # pylint: disable=too-many-instance-attributes
             bool: message was edited
 
         """
+        message = self.get_message(message.label)
+        if message is None:
+            return False
+
         # check if content and keyboard have changed since previous message
         content = message.content_updater()
         if not self._message_check_changes(message, content):

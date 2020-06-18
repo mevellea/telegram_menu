@@ -41,7 +41,7 @@ class ButtonType(Enum):
 
 class MenuButton:  # pylint: disable=too-few-public-methods
     """Base button class, wrapper for label with _callback.
-    
+
     Args:
         label (str): button label
         callback (obj, optional): method called on button selection
@@ -61,7 +61,7 @@ class MenuButton:  # pylint: disable=too-few-public-methods
 
 class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
     """Base message class, buttons array and label updater.
-    
+
     Args:
         navigation (telegram_menu.navigation.NavigationManager): navigation manager
         label (str): message label
@@ -85,8 +85,8 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
         self._navigation = navigation
 
         # previous values are used to check if it has changed, to skip sending identical message
-        self._keyboard_previous: [MenuButton] = []
-        self._content_previous = None
+        self.keyboard_previous: [MenuButton] = []
+        self.content_previous = None
 
         self.home_after = home_after
         self.message_id = None
@@ -101,10 +101,10 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
 
     def get_button(self, label):
         """Get button matching given label.
-        
+
         Args:
             label (str): message label
-    
+
         Returns:
             MenuButton: button matching label
 
@@ -112,12 +112,7 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
             EnvironmentError: too many buttons matching label
 
         """
-        buttons = [x for x in self.keyboard if x.label == label]
-        if len(buttons) > 1:
-            raise EnvironmentError("More than one button with same label")
-        if not buttons:
-            return None
-        return buttons[0]
+        return next(iter(x for x in self.keyboard if x.label == label), None)
 
     @staticmethod
     def emojize(emoji_name):
@@ -125,7 +120,7 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
 
         Args:
             emoji_name (str): emoji label
-    
+
         Returns:
             str: emoji encoded as string
 
@@ -138,16 +133,16 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
         Args:
             label (str): button label
             callback (obj, optional): method called on button selection
-    
+
         """
         self.keyboard.append(MenuButton(label, callback))
 
     def edit_message(self):
         """Request navigation controller to update current message.
-        
+
         Returns:
             bool: True if message was edited
-        
+
         """
         return self._navigation.edit_message(self)
 
@@ -158,7 +153,7 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
 
     def gen_keyboard_content(self, inlined=None):
         """Generate keyboard.
-            
+
         Args:
             inlined (bool, optional): inlined keyboard
 
@@ -185,11 +180,11 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
     @staticmethod
     def _get_array_from_list(buttons, cells_per_line):
         """Convert ar array of MenuButton to a grid.
-        
+
         Args:
             buttons (list): list of MenuButton
             cells_per_line (int): number of cells per line
-            
+
         Returns:
             list: list of list of MenuButton
 
@@ -211,10 +206,10 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
 
     def has_expired(self):
         """Return True if expiry date of message has expired.
-        
+
         Returns:
             bool: True if timer has expired
-        
+
         """
         return self._time_alive + self._expiry_period < datetime.datetime.now()
 

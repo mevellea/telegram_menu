@@ -209,7 +209,7 @@ class Test(unittest.TestCase):
         # run the update callback to trigger edition
         update_callback[0]()
 
-        time.sleep(200)
+        time.sleep(20)
 
         manager.updater.stop()
 

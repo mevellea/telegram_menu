@@ -37,7 +37,7 @@ from .models import BaseMessage, ButtonType
 
 class SessionManager:
     """Session manager, send start message to each new user connecting to the bot.
-    
+
     Args:
         api_key (str): Bot API key
         scheduler (BaseScheduler, optional): scheduler
@@ -113,11 +113,11 @@ class SessionManager:
 
     def _send_start_message(self, update, context):  # pylint: disable=unused-argument
         """Start main message, app choice.
-        
+
         Args:
             update (telegram.update.Update): telegram updater
             context (telegram.ext.callbackcontext.CallbackContext): callback context
-        
+
         """
         chat = update.effective_chat
         session = NavigationManager(self._api_key, chat, self._scheduler)
@@ -130,10 +130,10 @@ class SessionManager:
 
     def get_session(self, chat_id=0):
         """Get session from list.
-        
+
         Args:
             chat_id (int, optional): chat identifier
-        
+
         Returns:
             NavigationManager: the session found
 
@@ -145,11 +145,11 @@ class SessionManager:
 
     def _button_select_callback(self, update, context):
         """Menu message main entry point.
-        
+
         Args:
             update (telegram.update.Update): telegram updater
             context (telegram.ext.callbackcontext.CallbackContext): callback context
-        
+
         """
         session = self.get_session(update.effective_chat.id)
         if session is None:
@@ -171,19 +171,17 @@ class SessionManager:
 
     def _button_inline_select_callback(self, update, context):
         """Execute inline callback of an BaseMessage.
-        
+
         Args:
             update (telegram.update.Update): telegram updater
             context (telegram.ext.callbackcontext.CallbackContext): callback context
-        
+
         """
         session = self.get_session(update.effective_chat.id)
         if session is None:
             self._send_start_message(update, context)
             return
-        session.app_message_button_callback(
-            update.callback_query.data, update.callback_query.id, update.callback_query.message.message_id
-        )
+        session.app_message_button_callback(update.callback_query.data, update.callback_query.id)
 
     def _msg_error_handler(self, update, context):
         """Log Errors caused by Updates."""
@@ -203,7 +201,7 @@ class SessionManager:
 
 class NavigationManager:  # pylint: disable=too-many-instance-attributes
     """Navigation manager for Telegram application.
-    
+
     Args:
         api_key (str): Bot API key
         chat (Chat): telegram Chat object
@@ -256,7 +254,7 @@ class NavigationManager:  # pylint: disable=too-many-instance-attributes
 
     def _delete_queued_message(self, message):
         """Delete a message, remove from queue.
-    
+
         Args:
             message (BaseMessage): message
 
@@ -269,7 +267,7 @@ class NavigationManager:  # pylint: disable=too-many-instance-attributes
 
     def goto_menu(self, menu_message):
         """Send menu message and add to queue.
-    
+
         Args:
             menu_message (BaseMessage): message
 
@@ -299,7 +297,7 @@ class NavigationManager:  # pylint: disable=too-many-instance-attributes
 
     def _send_app_message(self, message, label):
         """Send an application message.
-    
+
         Args:
             message (BaseMessage): message
             label (str): message label
@@ -352,7 +350,7 @@ class NavigationManager:  # pylint: disable=too-many-instance-attributes
 
     def edit_message(self, message):
         """Edit an inline message asynchronously.
-    
+
         Args:
             message (BaseMessage): message
 
@@ -360,29 +358,29 @@ class NavigationManager:  # pylint: disable=too-many-instance-attributes
             bool: message was edited
 
         """
-        message = self.get_message(message.label)
-        if message is None:
-            return False
-
         # check if content and keyboard have changed since previous message
         content = message.content_updater()
         if not self._message_check_changes(message, content):
             return False
 
         keyboard_format = message.gen_keyboard_content()
-        self._bot.edit_message_text(
-            text=content,
-            chat_id=self.chat_id,
-            message_id=message.message_id,
-            parse_mode="HTML",
-            reply_markup=keyboard_format,
-        )
+        try:
+            self._bot.edit_message_text(
+                text=content,
+                chat_id=self.chat_id,
+                message_id=message.message_id,
+                parse_mode="HTML",
+                reply_markup=keyboard_format,
+            )
+        except telegram.error.BadRequest as error:
+            self._logger.error(error)
+            return False
         return True
 
     @staticmethod
     def _message_check_changes(message, content):
         """Check is message content and keyboard has changed since last edit.
-    
+
         Args:
             message (BaseMessage): message
             content (str): message content
@@ -398,13 +396,13 @@ class NavigationManager:  # pylint: disable=too-many-instance-attributes
 
     def select_menu_button(self, label):
         """Select menu button using label.
-    
+
         Args:
             label (str): message label
 
         Returns:
             int: message identifier
-            
+
         """
         if label == "Back":
             menu_previous = self._menu_queue.pop()  # delete actual menu
@@ -426,13 +424,12 @@ class NavigationManager:  # pylint: disable=too-many-instance-attributes
                 return msg_id
         return 0
 
-    def app_message_button_callback(self, callback_label, callback_id, message_id):
+    def app_message_button_callback(self, callback_label, callback_id):
         """Entry point to execute an action after message button selection.
-    
+
         Args:
             callback_label (str): callback label
             callback_id (str): callback identifier
-            message_id (str): message identifier
 
         """
         label_message, label_action = callback_label.split(".")
@@ -470,17 +467,9 @@ class NavigationManager:  # pylint: disable=too-many-instance-attributes
             return
         self._bot.answer_callback_query(callback_id, text=action_status)
 
-        # update expiry period
+        # update expiry period and update
         message.is_alive()
-
-        content = message.content_updater()
-        if not self._message_check_changes(message, content):
-            return
-
-        keyboard_format = message.gen_keyboard_content(True)
-        self._bot.edit_message_text(
-            text=content, chat_id=self.chat_id, message_id=message_id, parse_mode="HTML", reply_markup=keyboard_format
-        )
+        self.edit_message(message)
 
     def send_photo(self, picture_path, notification=True):
         """Send a picture.
@@ -502,7 +491,7 @@ class NavigationManager:  # pylint: disable=too-many-instance-attributes
 
     def get_message(self, label_message):
         """Get message from message_queue matching attribute label_message.
-    
+
         Args:
             label_message (str): message label
 
@@ -510,13 +499,13 @@ class NavigationManager:  # pylint: disable=too-many-instance-attributes
             BaseMessage: message found
 
         """
-        buttons = [x for x in self._message_queue if x.label == label_message]
-        if not buttons:
-            return None
-        return buttons[0]
+        return next(iter(x for x in self._message_queue if x.label == label_message), None)
 
     def send_poll(self, question, options):
         """Send poll to user with question and options."""
+        if self.scheduler.get_job(f"poll_{self.user_name}") is not None:
+            # poll already in progress
+            return
         self._poll = self._bot.send_poll(
             chat_id=self.chat_id, question=question, options=options, is_anonymous=False, open_period=self.POLL_DEADLINE
         )
@@ -546,5 +535,6 @@ class NavigationManager:  # pylint: disable=too-many-instance-attributes
         )
         self._poll_calback(self._poll.poll.options[answer].text)
         time.sleep(1)
+        self._logger.info("Deleting poll '%s'", self._poll.poll.question)
         self._bot.delete_message(chat_id=self.chat_id, message_id=self._poll.message_id)
         self._poll = None

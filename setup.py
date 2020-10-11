@@ -13,7 +13,7 @@ __version__ = "0.1.18"
 setup(
     name=__title__,
     version=__version__,
-    description="A python library to generate menus and messages using Telegram Bot API",
+    description="A python library to generate navigation menus using Telegram Bot API",
     long_description=LONG_DESCRIPTION,
     long_description_content_type="text/markdown",
     url="https://github.com/mevellea/telegram_menu",
@@ -21,7 +21,7 @@ setup(
     author_email="mevellea@gmail.com",
     license="GNU GPLv3",
     packages=find_packages(),
-    install_requires=[],
+    install_requires=["MANIFEST.in"],
     tests_require=["tox>=3.5.0,<4.0.0"],
     platforms=["any"],
     keywords="telegram",

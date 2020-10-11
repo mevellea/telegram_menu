@@ -1,15 +1,15 @@
-# telegram_menu
+# telegram_menu package
 
-A python library for generating Telegram menu and application messages.
+A python library for generating Telegram navigation menu and application messages.
 
-This library provides classes to generate menu using `Telegram Bot Api`, it is compatible with Python versions 3.5+.
+Base classes `MenuMessage` and `AppMessage` define buttons to execute application 
+callbacks and nevigate to chained messages. 
 
-Menus and messages are configured using base classes MenuMessage and AppMessage:
+Features:
 
 * Menu navigation using tree structure, unlimited depth
-* Support for sending pictures
-* Support for notifications
-* Session manager when multiple users connect to same bot
+* Support for sending pictures, notifications, and polls
+* Session manager when multiple users connect to the same bot
 * Automatic deletion of messages when configurable timer has expired
 * Integration of markdown format + emojis
 
@@ -47,7 +47,7 @@ class StartMessage(MenuMessage):
         """Update message content."""
         return "Hello, world!"
 
-SessionManager(API_KEY, StartMessage)
+SessionManager(API_KEY).start(StartMessagecal)
 ```
 
 You can add any button in ``StartMessage``, using ``self.add_button()`` method:
@@ -75,11 +75,10 @@ self.add_button("Show picture", self.get_picture, ButtonType.PICTURE)
 
 ## Structure
 
-Classes in package ``telegram_menu`` are stored in 3 python files:
+Classes in package ``telegram_menu`` are stored in 2 python files:
 
 * [navigation.py](telegram_menu/navigation.py): main interface, menu and message generation and management
 * [models.py](telegram_menu/models.py): menu and messages model, classes definition
-* [messenger.py](telegram_menu/messenger.py): interface with telegram APIs
 
 <img src="resources/packages.png" alt="drawing" width="400"/> 
 

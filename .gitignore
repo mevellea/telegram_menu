@@ -9,3 +9,5 @@ __pycache__
 build
 htmlcov
 coverage.json
+docs/_build
+docs/README.rst

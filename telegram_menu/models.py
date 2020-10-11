@@ -31,7 +31,7 @@ import telegram
 from telegram import InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
 
 if TYPE_CHECKING:
-    from .navigation import NavigationManager
+    from telegram_menu import NavigationManager
 
 
 class ButtonType(Enum):
@@ -74,11 +74,11 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
     """Base message class, buttons array and label updater.
 
     Args:
-        navigation (NavigationManager): navigation manager
-        label (str): message label
-        expiry_period (datetime.timedelta, optional): duration before the message is deleted
-        inlined (bool, optional): create an inlined message instead of a menu message
-        home_after (bool, optional): go back to home menu after executing the action
+        navigation: navigation manager
+        label: message label
+        expiry_period: duration before the message is deleted
+        inlined: create an inlined message instead of a menu message
+        home_after: go back to home menu after executing the action
 
     """
 

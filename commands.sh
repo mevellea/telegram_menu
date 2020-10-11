@@ -38,6 +38,17 @@ call_pyreverse()
   pyreverse --output=png --filter-mode=PUB_ONLY telegram_menu
 }
 
+call_gendoc()
+{
+  m2r README.md
+  mv README.rst docs
+  cp -R resources/ docs/_build/html/
+  cd docs || exit
+  make html
+  xdg-open _build/html/index.html &
+  cd ..
+}
+
 start_venv()
 {
   VENV_NAME=venv_home

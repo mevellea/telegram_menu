@@ -6,8 +6,9 @@ import datetime
 import logging
 import time
 import unittest
+from typing import Any, List
 
-from telegram_menu import BaseMessage, ButtonType, MenuButton, SessionManager
+from telegram_menu import BaseMessage, ButtonType, MenuButton, NavigationManager, SessionManager
 
 # this is a testing key, do not use it in production!
 API_KEY = "872134523:AAEe0_y78tnYYEWNUn2QRahnd48rjKhsxSA"
@@ -18,51 +19,50 @@ class OptionsAppMessage(BaseMessage):
 
     LABEL = "options"
 
-    def __init__(self, navigation, update_callback):
+    def __init__(self, navigation: NavigationManager, update_callback: List[Any]) -> None:
         """Init OptionsAppMessage class."""
         super().__init__(navigation, OptionsAppMessage.LABEL, inlined=True)
 
         self.play_pause = True
         update_callback.append(self.app_update_display)
 
-    def app_update_display(self):
+    def app_update_display(self) -> None:
         """Update message content when callback triggered."""
         self.play_pause = not self.play_pause
         edited = self.edit_message()
         if edited:
             self.is_alive()
 
-    def kill_message(self):
+    def kill_message(self) -> None:
         """Kill message after this callback."""
         self.play_pause = not self.play_pause
-        return "Kill message"
 
-    def action_button(self):
+    def action_button(self) -> str:
         """Execute an action and return notification content."""
         self.play_pause = not self.play_pause
         return "option selected!"
 
-    def text_button(self):
+    def text_button(self) -> str:
         """Display any text data."""
         self.play_pause = not self.play_pause
         data = [["text1", "value1"], ["text2", "value2"]]
         return self.format_list_to_html(data)
 
-    def picture_button(self):
+    def picture_button(self) -> str:
         """Display a picture."""
         self.play_pause = not self.play_pause
         return "resources/stats_default.png"
 
-    def picture_button2(self):
+    def picture_button2(self) -> None:
         """Display an undefined picture."""
         self.play_pause = not self.play_pause
 
     @staticmethod
-    def action_poll(poll_answer):
+    def action_poll(poll_answer: str) -> None:
         """Display poll answer."""
         logging.info("Answer is %s", poll_answer)
 
-    def content_updater(self):
+    def content_updater(self) -> str:
         """Update message content."""
         poll_question = "Select one option:"
         poll_choices = ["Option1", "Option2", "Option3", "Option4", "Option5", "Option6", "Option7", "Option8"]
@@ -84,7 +84,7 @@ class ActionAppMessage(BaseMessage):
 
     LABEL = "action"
 
-    def __init__(self, navigation):
+    def __init__(self, navigation: NavigationManager) -> None:
         """Init ActionAppMessage class."""
         super().__init__(
             navigation,
@@ -94,7 +94,7 @@ class ActionAppMessage(BaseMessage):
             home_after=True,
         )
 
-    def content_updater(self):
+    def content_updater(self) -> str:
         """Update message content."""
         return "<code>Action!</code>"
 
@@ -104,7 +104,7 @@ class SecondMenuMessage(BaseMessage):
 
     LABEL = "second_message"
 
-    def __init__(self, navigation, update_callback):
+    def __init__(self, navigation: NavigationManager, update_callback: List[Any]) -> None:
         """Init SecondMenuMessage class."""
         super().__init__(
             navigation, SecondMenuMessage.LABEL, notification=False, expiry_period=datetime.timedelta(seconds=5)
@@ -118,13 +118,13 @@ class SecondMenuMessage(BaseMessage):
         self.add_button("Home")
         update_callback.append(self.app_update_display)
 
-    def app_update_display(self):
+    def app_update_display(self) -> None:
         """Update message content when callback triggered."""
         edited = self.edit_message()
         if edited:
             self.is_alive()
 
-    def content_updater(self):
+    def content_updater(self) -> str:
         """Update message content."""
         return "Second message"
 
@@ -134,7 +134,7 @@ class StartMessage(BaseMessage):
 
     LABEL = "start"
 
-    def __init__(self, navigation, update_callback):
+    def __init__(self, navigation: NavigationManager, update_callback: List[Any]) -> None:
         """Init StartMessage class."""
         super().__init__(navigation, StartMessage.LABEL)
 
@@ -144,7 +144,7 @@ class StartMessage(BaseMessage):
         self.add_button("Action", action_message)
         self.add_button("Second menu", second_menu)
 
-    def content_updater(self):
+    def content_updater(self) -> str:
         """Update message content."""
         return "Start message!"
 
@@ -152,18 +152,18 @@ class StartMessage(BaseMessage):
 class Test(unittest.TestCase):
     """The basic class that inherits unittest.TestCase."""
 
-    def test_wrong_api_key(self):
+    def test_wrong_api_key(self) -> None:
         """Test starting a client with wrong key."""
         with self.assertRaises(AttributeError):
-            SessionManager(None)
+            SessionManager(None)  # type: ignore
 
         with self.assertRaises(AttributeError):
-            SessionManager(1234)
+            SessionManager(1234)  # type: ignore
 
         with self.assertRaises(AttributeError):
             SessionManager("1234:5678")
 
-    def test_bad_start_message(self):
+    def test_bad_start_message(self) -> None:
         """Test starting a client with bad start message."""
         manager = SessionManager(API_KEY)
 
@@ -175,10 +175,10 @@ class Test(unittest.TestCase):
 
         manager.updater.stop()
 
-    def test_client_connection(self):
+    def test_client_connection(self) -> None:
         """Run the client test."""
         init_logger()
-        update_callback = []
+        update_callback: List[Any] = []
 
         manager = SessionManager(API_KEY)
         manager.start(StartMessage, update_callback)
@@ -223,7 +223,7 @@ class Test(unittest.TestCase):
         manager.updater.stop()
 
 
-def init_logger():
+def init_logger() -> None:
     """Initialize logger properties."""
     log_formatter = logging.Formatter(
         fmt="%(asctime)s [%(name)s] [%(levelname)s]  %(message)s", datefmt="%Y-%m-%d %H:%M:%S"

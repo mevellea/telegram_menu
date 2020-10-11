@@ -24,10 +24,14 @@ import datetime
 import logging
 from abc import ABC, abstractmethod
 from enum import Enum, auto
+from typing import TYPE_CHECKING, Any, List, Optional, Union
 
 import emoji
 import telegram
 from telegram import InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
+
+if TYPE_CHECKING:
+    from .navigation import NavigationManager
 
 
 class ButtonType(Enum):
@@ -43,14 +47,21 @@ class MenuButton:  # pylint: disable=too-few-public-methods
     """Base button class, wrapper for label with _callback.
 
     Args:
-        label (str): button label
-        callback (obj, optional): method called on button selection
-        btype (ButtonType, optional): button type
-        notification (bool, optional): send notification to user
+        label: button label
+        callback: method called on button selection
+        btype: button type
+        notification: send notification to user
 
     """
 
-    def __init__(self, label, callback=None, btype=ButtonType.NOTIFICATION, args=None, notification=True):
+    def __init__(
+        self,
+        label: str,
+        callback: Any = None,
+        btype: ButtonType = ButtonType.NOTIFICATION,
+        args: Any = None,
+        notification: bool = True,
+    ):
         """Init MenuButton class."""
         self.label = label
         self.callback = callback
@@ -63,7 +74,7 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
     """Base message class, buttons array and label updater.
 
     Args:
-        navigation (telegram_menu.navigation.NavigationManager): navigation manager
+        navigation (NavigationManager): navigation manager
         label (str): message label
         expiry_period (datetime.timedelta, optional): duration before the message is deleted
         inlined (bool, optional): create an inlined message instead of a menu message
@@ -73,23 +84,31 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
 
     EXPIRING_DELAY = 12  # minutes
 
-    def __init__(self, navigation, label, expiry_period=None, inlined=False, home_after=False, notification=True):
+    def __init__(
+        self,
+        navigation: "NavigationManager",
+        label: str,
+        expiry_period: Optional[datetime.timedelta] = None,
+        inlined: bool = False,
+        home_after: bool = False,
+        notification: bool = True,
+    ):
         """Init BaseMessage class."""
         self._logger = logging.getLogger(__name__)
         self._logger.setLevel(logging.DEBUG)
 
-        self.keyboard = []
+        self.keyboard: List[MenuButton] = []
         self.label = label
         self.inlined = inlined
         self.notification = notification
         self._navigation = navigation
 
         # previous values are used to check if it has changed, to skip sending identical message
-        self.keyboard_previous: [MenuButton] = []
-        self.content_previous = None
+        self.keyboard_previous: List[MenuButton] = []
+        self.content_previous: str = ""
 
         self.home_after = home_after
-        self.message_id = None
+        self.message_id = -1
         self._expiry_period = (
             expiry_period
             if isinstance(expiry_period, datetime.timedelta)
@@ -97,16 +116,16 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
         )
 
         self._status = None
-        self._time_alive = None
+        self._time_alive: Optional[datetime.datetime] = None
 
-    def get_button(self, label):
+    def get_button(self, label: str) -> Optional[MenuButton]:
         """Get button matching given label.
 
         Args:
-            label (str): message label
+            label: message label
 
         Returns:
-            MenuButton: button matching label
+            button matching label
 
         Raises:
             EnvironmentError: too many buttons matching label
@@ -115,50 +134,50 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
         return next(iter(x for x in self.keyboard if x.label == label), None)
 
     @staticmethod
-    def emojize(emoji_name):
+    def emojize(emoji_name: str) -> str:
         """Get utf-16 code for emoji, defined in https://www.webfx.com/tools/emoji-cheat-sheet/.
 
         Args:
-            emoji_name (str): emoji label
+            emoji_name: emoji label
 
         Returns:
-            str: emoji encoded as string
+            emoji encoded as string
 
         """
         return emoji.emojize(f":{emoji_name}:", use_aliases=True)
 
-    def add_button(self, label, callback=None):
+    def add_button(self, label: str, callback: Any = None) -> None:
         """Add a button to keyboard attribute.
 
         Args:
-            label (str): button label
-            callback (obj, optional): method called on button selection
+            label: button label
+            callback: method called on button selection
 
         """
         self.keyboard.append(MenuButton(label, callback))
 
-    def edit_message(self):
+    def edit_message(self) -> bool:
         """Request navigation controller to update current message.
 
         Returns:
-            bool: True if message was edited
+            True if message was edited
 
         """
         return self._navigation.edit_message(self)
 
     @abstractmethod
-    def content_updater(self):
+    def content_updater(self) -> str:
         """Update message content."""
         raise NotImplementedError
 
-    def gen_keyboard_content(self, inlined=None):
+    def gen_keyboard_content(self, inlined: Optional[bool] = None) -> Union[ReplyKeyboardMarkup, InlineKeyboardMarkup]:
         """Generate keyboard.
 
         Args:
-            inlined (bool, optional): inlined keyboard
+            inlined: inlined keyboard
 
         Returns:
-            ReplyKeyboardMarkup, InlineKeyboardMarkup: generated keyboard
+            Generated keyboard
 
         """
         if inlined is None:
@@ -178,15 +197,15 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
         return ReplyKeyboardMarkup(keyboard=keyboard_buttons, resize_keyboard=True)
 
     @staticmethod
-    def _get_array_from_list(buttons, cells_per_line):
+    def _get_array_from_list(buttons: List[MenuButton], cells_per_line: int) -> List[List[MenuButton]]:
         """Convert ar array of MenuButton to a grid.
 
         Args:
-            buttons (list): list of MenuButton
-            cells_per_line (int): number of cells per line
+            buttons: list of MenuButton
+            cells_per_line: number of cells per line
 
         Returns:
-            list: list of list of MenuButton
+            List of list of MenuButton
 
         """
         array = []
@@ -200,29 +219,31 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
             array.append(array_row)
         return array
 
-    def is_alive(self):
+    def is_alive(self) -> None:
         """Update message time stamp."""
         self._time_alive = datetime.datetime.now()
 
-    def has_expired(self):
+    def has_expired(self) -> bool:
         """Return True if expiry date of message has expired.
 
         Returns:
-            bool: True if timer has expired
+            True if timer has expired
 
         """
-        return self._time_alive + self._expiry_period < datetime.datetime.now()
+        if self._time_alive is not None:
+            return self._time_alive + self._expiry_period < datetime.datetime.now()
+        return False
 
-    def kill_message(self):
+    def kill_message(self) -> None:
         """Display status before message is destroyed."""
         self._logger.debug("Removing message '%s' (%s)", self.label, self.message_id)
 
     @staticmethod
-    def format_list_to_html(args_array):
+    def format_list_to_html(args_array: Union[List[str], List[List[str]]]) -> str:
         """Format array of strings in html, first element bold.
 
         Args:
-            args_array (list): text content
+            args_array: text content
 
         """
         content = ""

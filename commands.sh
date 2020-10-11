@@ -13,6 +13,11 @@ call_pylama()
   pylama -o pylama.ini tests
 }
 
+call_mypy()
+{
+  mypy --config-file mypy.ini .
+}
+
 call_isort()
 {
   isort -rc .
@@ -47,5 +52,6 @@ call_check()
   call_isort
   call_black
   call_pylama
+  call_mypy
   call_coverage
 }

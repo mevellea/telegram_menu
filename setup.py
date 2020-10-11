@@ -8,7 +8,7 @@ with open(os.path.join("README.md"), "r") as fh:
     LONG_DESCRIPTION = fh.read()
 
 __title__ = "telegram_menu"
-__version__ = "0.1.18"
+__version__ = "0.2.0"
 
 setup(
     name=__title__,
@@ -17,11 +17,11 @@ setup(
     long_description=LONG_DESCRIPTION,
     long_description_content_type="text/markdown",
     url="https://github.com/mevellea/telegram_menu",
-    author="Armel Mevellec",
+    author="Armel MEVELLEC",
     author_email="mevellea@gmail.com",
     license="GNU GPLv3",
     packages=find_packages(),
-    install_requires=["MANIFEST.in"],
+    install_requires=[],
     tests_require=["tox>=3.5.0,<4.0.0"],
     platforms=["any"],
     keywords="telegram",

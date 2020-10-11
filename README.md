@@ -1,9 +1,9 @@
 # telegram_menu package
 
-A python library for generating Telegram navigation menu and application messages.
+A python library to generate navigation menus using Telegram Bot API.
 
-Base classes `MenuMessage` and `AppMessage` define buttons to execute application 
-callbacks and nevigate to chained messages. 
+Base classes `MenuMessage` and `AppMessage` help defining  
+applications buttons to navigate in a message tree. 
 
 Features:
 
@@ -13,14 +13,15 @@ Features:
 * Automatic deletion of messages when configurable timer has expired
 * Integration of markdown format + emojis
 
-<img src="resources/demo_picture.jpg" alt="drawing" width="200"/>     <img src="resources/demo_player.jpg" alt="drawing" width="200"/>
+<img src="https://raw.githubusercontent.com/mevellea/telegram_menu/master/resources/demo_picture.jpg" width="200"/>
+
+<img src="https://raw.githubusercontent.com/mevellea/telegram_menu/master/resources/demo_player.jpg" width="200"/>
+
 
 ## Installation
 
 ```bash
-git clone https://github.com/mevellea/telegram_menu
-cd telegram_menu
-python setup.py install
+pip install telegram_menu
 ```
 
 ## Getting Started
@@ -30,24 +31,24 @@ You first need to [create a Telegram bot](https://github.com/python-telegram-bot
 Following code block creates a ``Hello, World!`` message:
 
 ```python
-from telegram_menu import MenuMessage, SessionManager
+from telegram_menu import BaseMessage, SessionManager
 
 API_KEY = "put_your_telegram_bot_api_key_here"
 
-class StartMessage(MenuMessage):
+class StartMessage(BaseMessage):
     """Start menu, create all app sub-menus."""
 
     LABEL = "start"
 
-    def __init__(self, navigation):
+    def __init__(self, navigation: NavigationManager) -> None:
         """Init StartMessage class."""
-        MenuMessage.__init__(self, navigation, StartMessage.LABEL)
+        super().__init__(navigation, StartMessage.LABEL)
 
-    def content_updater(self):
+    def content_updater(self) -> str:
         """Update message content."""
         return "Hello, world!"
 
-SessionManager(API_KEY).start(StartMessagecal)
+SessionManager(API_KEY).start(StartMessage)
 ```
 
 You can add any button in ``StartMessage``, using ``self.add_button()`` method:
@@ -77,11 +78,12 @@ self.add_button("Show picture", self.get_picture, ButtonType.PICTURE)
 
 Classes in package ``telegram_menu`` are stored in 2 python files:
 
+
 * [navigation.py](telegram_menu/navigation.py): main interface, menu and message generation and management
 * [models.py](telegram_menu/models.py): menu and messages model, classes definition
 
-<img src="resources/packages.png" alt="drawing" width="400"/> 
+<img src="https://raw.githubusercontent.com/mevellea/telegram_menu/master/resources/packages.png" width="400"/>
 
 Following class diagram describes all public interfaces:
 
-<img src="resources/classes.png" alt="drawing" width="800"/> 
+<img src="https://raw.githubusercontent.com/mevellea/telegram_menu/master/resources/classes.png" width="800"/>

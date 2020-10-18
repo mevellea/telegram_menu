@@ -6,7 +6,7 @@ Welcome to telegram-menu's documentation!
    :maxdepth: 2
    :caption: Usage:
 
-   README
+.. include:: README.rst
 
 
 telegram_menu

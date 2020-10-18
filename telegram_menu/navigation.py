@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# A python library for generating Telegram menus
+# A python library to generate navigation menus using Telegram Bot API
 # Copyright (C) 2020
 # Armel MEVELLEC <mevellea@gmail.com>
 #
@@ -45,6 +45,8 @@ class SessionManager:
     READ_TIMEOUT = 6
     CONNECT_TIMEOUT = 7
 
+    start_message_class: type
+
     def __init__(self, api_key: str, scheduler: Optional[BaseScheduler] = None) -> None:
         """Initialize SessionManager class."""
         if not isinstance(api_key, str):
@@ -73,8 +75,7 @@ class SessionManager:
 
         self._api_key = api_key
         self.sessions: List[NavigationManager] = []
-        self._start_message_class: Optional[type] = None
-        self._start_message_args = None
+        self.start_message_args = None
 
         # on different commands - answer in Telegram
         self.updater.dispatcher.add_handler(CommandHandler("start", self._send_start_message))
@@ -85,8 +86,8 @@ class SessionManager:
 
     def start(self, start_message_class: type, start_message_args: Any = None) -> None:
         """Set start message and run dispatcher."""
-        self._start_message_class = start_message_class
-        self._start_message_args = start_message_args
+        self.start_message_class = start_message_class
+        self.start_message_args = start_message_args
         if not issubclass(start_message_class, BaseMessage):
             raise AttributeError("start_message_class must be a BaseMessage!")
         if start_message_args is not None and not isinstance(start_message_args, list):
@@ -101,12 +102,12 @@ class SessionManager:
         chat = update.effective_chat
         session = NavigationManager(self._api_key, chat, self._scheduler)
         self.sessions.append(session)
-        if self._start_message_class is None:
+        if self.start_message_class is None:
             raise AttributeError("Message class not defined")
-        if self._start_message_args is not None:
-            start_message = self._start_message_class(session, self._start_message_args)
+        if self.start_message_args is not None:
+            start_message = self.start_message_class(session, self.start_message_args)
         else:
-            start_message = self._start_message_class(session)
+            start_message = self.start_message_class(session)
         session.goto_menu(start_message)
 
     def get_session(self, chat_id: int = 0) -> Optional["NavigationManager"]:
@@ -418,4 +419,8 @@ class NavigationManager:  # pylint: disable=too-many-instance-attributes
         time.sleep(1)
         self._logger.info("Deleting poll '%s'", self._poll.poll.question)
         self._bot.delete_message(chat_id=self.chat_id, message_id=self._poll.message_id)
+
+        poll_name = f"poll_{self.user_name}"
+        if self.scheduler.get_job(poll_name) is not None:
+            self.scheduler.remove_job(poll_name)
         self._poll = None

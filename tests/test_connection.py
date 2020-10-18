@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*scheduler-
+# -*- coding: utf-8 -*-
 
 """Test telegram_menu package."""
 
@@ -8,7 +8,7 @@ import time
 import unittest
 from typing import Any, List
 
-from telegram_menu import BaseMessage, ButtonType, MenuButton, NavigationManager, SessionManager
+from telegram_menu import BaseMessage, ButtonType, KeyboardContent, MenuButton, NavigationManager, SessionManager
 
 # this is a testing key, do not use it in production!
 API_KEY = "872134523:AAEe0_y78tnYYEWNUn2QRahnd48rjKhsxSA"
@@ -45,7 +45,7 @@ class OptionsAppMessage(BaseMessage):
     def text_button(self) -> str:
         """Display any text data."""
         self.play_pause = not self.play_pause
-        data = [["text1", "value1"], ["text2", "value2"]]
+        data: KeyboardContent = [["text1", "value1"], ["text2", "value2"]]
         return self.format_list_to_html(data)
 
     def picture_button(self) -> str:

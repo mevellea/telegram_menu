@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# A python library for generating Telegram menus
+# A python library to generate navigation menus using Telegram Bot API
 # Copyright (C) 2020
 # Armel MEVELLEC <mevellea@gmail.com>
 #
@@ -33,6 +33,8 @@ from telegram import InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
 if TYPE_CHECKING:
     from telegram_menu import NavigationManager
 
+KeyboardContent = List[Union[str, List[str]]]
+
 
 class ButtonType(Enum):
     """Button type enumeration."""
@@ -44,7 +46,7 @@ class ButtonType(Enum):
 
 
 class MenuButton:  # pylint: disable=too-few-public-methods
-    """Base button class, wrapper for label with _callback.
+    """Base button class, wrapper for label with callback.
 
     Args:
         label: button label
@@ -64,7 +66,7 @@ class MenuButton:  # pylint: disable=too-few-public-methods
     ):
         """Init MenuButton class."""
         self.label = label
-        self.callback = callback
+        self.callback: Any = callback
         self.btype = btype
         self.args = args
         self.notification = notification
@@ -83,6 +85,8 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
     """
 
     EXPIRING_DELAY = 12  # minutes
+
+    time_alive: datetime.datetime
 
     def __init__(
         self,
@@ -116,7 +120,6 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
         )
 
         self._status = None
-        self._time_alive: Optional[datetime.datetime] = None
 
     def get_button(self, label: str) -> Optional[MenuButton]:
         """Get button matching given label.
@@ -221,7 +224,7 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
 
     def is_alive(self) -> None:
         """Update message time stamp."""
-        self._time_alive = datetime.datetime.now()
+        self.time_alive = datetime.datetime.now()
 
     def has_expired(self) -> bool:
         """Return True if expiry date of message has expired.
@@ -230,8 +233,8 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
             True if timer has expired
 
         """
-        if self._time_alive is not None:
-            return self._time_alive + self._expiry_period < datetime.datetime.now()
+        if self.time_alive is not None:
+            return self.time_alive + self._expiry_period < datetime.datetime.now()
         return False
 
     def kill_message(self) -> None:
@@ -239,7 +242,7 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
         self._logger.debug("Removing message '%s' (%s)", self.label, self.message_id)
 
     @staticmethod
-    def format_list_to_html(args_array: Union[List[str], List[List[str]]]) -> str:
+    def format_list_to_html(args_array: KeyboardContent) -> str:
         """Format array of strings in html, first element bold.
 
         Args:

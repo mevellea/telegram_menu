@@ -20,7 +20,7 @@ call_mypy()
 
 call_isort()
 {
-  isort -rc .
+  isort -l 120 -rc .
 }
 
 call_coverage()
@@ -63,6 +63,13 @@ call_check()
   call_isort
   call_black
   call_pylama
-  call_mypy
   call_coverage
+}
+
+call_release()
+{
+  python setup.py sdist
+  # manual call:
+  # twine upload --repository-url https://test.pypi.org/legacy/ dist/*.tar.gz
+  # pip install --upgrade --index-url https://test.pypi.org/simple/ telegram_menu
 }

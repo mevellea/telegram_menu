@@ -70,6 +70,9 @@ call_release()
 {
   python setup.py sdist
   # manual call:
-  # twine upload --repository-url https://test.pypi.org/legacy/ dist/*.tar.gz
-  # pip install --upgrade --index-url https://test.pypi.org/simple/ telegram_menu
+  # twine upload --repository-url https://pypi.org/legacy/ dist/*.tar.gz
+  # pip install -U --index-url https://pypi.org/simple/ telegram_menu
+
+  # twine upload dist/*.tar.gz
+  # pip install -U --index-url https://pypi.org/simple/ telegram_menu
 }

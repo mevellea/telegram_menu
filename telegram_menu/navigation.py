@@ -174,6 +174,7 @@ class NavigationManager:  # pylint: disable=too-many-instance-attributes
         self.scheduler = scheduler
         self.chat_id = chat.id
         self.user_name = chat.first_name
+        self.poll_name = f"poll_{self.user_name}"
 
         self._logger = logging.getLogger(__name__)
         self._logger.setLevel(logging.INFO)
@@ -366,7 +367,7 @@ class NavigationManager:  # pylint: disable=too-many-instance-attributes
 
     def send_photo(self, picture_path: str, notification: bool = True) -> telegram.Message:
         """Send a picture."""
-        if picture_path is None or not os.path.isfile(picture_path):
+        if picture_path is None or not picture_path or not os.path.isfile(picture_path):
             dir_path = os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir))
             picture_path = os.path.join(dir_path, self.PICTURE_DEFAULT)
             self._logger.error("Picture not defined, replacing with default %s", self.PICTURE_DEFAULT)
@@ -379,48 +380,44 @@ class NavigationManager:  # pylint: disable=too-many-instance-attributes
 
     def send_poll(self, question: str, options: List[str]) -> None:
         """Send poll to user with question and options."""
-        if self.scheduler.get_job(f"poll_{self.user_name}") is not None:
-            # poll already in progress
-            return
+        if self.scheduler.get_job(self.poll_name) is not None:
+            self.poll_delete()
         self._poll = self._bot.send_poll(
             chat_id=self.chat_id, question=question, options=options, is_anonymous=False, open_period=self.POLL_DEADLINE
         )
         self.scheduler.add_job(
-            self.poll_timeout,
+            self.poll_delete,
             "date",
-            id=f"poll_{self.user_name}",
+            id=self.poll_name,
             next_run_time=datetime.datetime.now() + datetime.timedelta(seconds=self.POLL_DEADLINE + 1),
             replace_existing=True,
         )
 
-    def poll_timeout(self) -> None:
+    def poll_delete(self) -> None:
         """Run when poll timeout has expired."""
         if self._poll is not None:
             try:
+                self._logger.info("Deleting poll '%s'", self._poll.poll.question)
                 self._bot.delete_message(chat_id=self.chat_id, message_id=self._poll.message_id)
             except telegram.error.BadRequest:
                 self._logger.error("Poll message %s already deleted", self._poll.message_id)
 
     def poll_answer(self, answer_id: int) -> None:
         """Run when poll message is received."""
-        if self._poll is None:
+        if self._poll is None or self._poll_calback is None:
+            self._logger.error("Poll is not defined")
             return
+
         self._logger.info(
             "%s's answer to question '%s' is '%s'",
             self.user_name,
             self._poll.poll.question,
             self._poll.poll.options[answer_id].text,
         )
-        if self._poll_calback is None:
-            self._logger.error("Poll callback is not defined")
-            return
-
         self._poll_calback(self._poll.poll.options[answer_id].text)
         time.sleep(1)
-        self._logger.info("Deleting poll '%s'", self._poll.poll.question)
-        self._bot.delete_message(chat_id=self.chat_id, message_id=self._poll.message_id)
+        self.poll_delete()
 
-        poll_name = f"poll_{self.user_name}"
-        if self.scheduler.get_job(poll_name) is not None:
-            self.scheduler.remove_job(poll_name)
+        if self.scheduler.get_job(self.poll_name) is not None:
+            self.scheduler.remove_job(self.poll_name)
         self._poll = None

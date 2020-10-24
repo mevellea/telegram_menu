@@ -7,9 +7,10 @@ import os
 import sys
 import typing
 
-from ._version import __author__, __copyright__, __title__
-
 sys.path.insert(0, os.path.abspath(".."))
+
+print(sys.path)
+exec(open("../telegram_menu/_version.py").read())
 
 
 # -- Project information -----------------------------------------------------
@@ -19,7 +20,7 @@ copyright = __copyright__
 author = __author__
 
 # The full version, including alpha/beta/rc tags
-release = _version
+release = __version__
 
 # overwrite TYPE_CHECKING to load static type hints
 typing.TYPE_CHECKING = True

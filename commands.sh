@@ -45,6 +45,12 @@ call_gendoc()
   cp -R resources/ docs/_build/html/
   cd docs || exit
   make html
+  cd ..
+}
+
+open_doc()
+{
+  cd docs || exit
   xdg-open _build/html/index.html &
   cd ..
 }
@@ -63,6 +69,7 @@ call_check()
   call_isort
   call_black
   call_pylama
+  call_gendoc
   call_coverage
 }
 

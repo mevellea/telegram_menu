@@ -1,21 +1,4 @@
-# -*- coding: utf-8 -*-
-#
-# A python library to generate navigation menus using Telegram Bot API
-# Copyright (C) 2020
-# Armel MEVELLEC <mevellea@gmail.com>
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Lesser Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Lesser Public License for more details.
-#
-# You should have received a copy of the GNU Lesser Public License
-# along with this program.  If not, see [http://www.gnu.org/licenses/].
+#!/usr/bin/env python3
 
 """Telegram menu navigation."""
 
@@ -38,7 +21,7 @@ from telegram.utils.request import Request
 from .models import BaseMessage, ButtonType
 
 
-class SessionManager:
+class TelegramMenuSession:
     """Session manager, send start message to each new user connecting to the bot."""
 
     # delays in seconds
@@ -48,7 +31,7 @@ class SessionManager:
     start_message_class: type
 
     def __init__(self, api_key: str, scheduler: Optional[BaseScheduler] = None) -> None:
-        """Initialize SessionManager class."""
+        """Initialize TelegramMenuSession class."""
         if not isinstance(api_key, str):
             raise AttributeError("API_KEY must be a string!")
 
@@ -74,7 +57,7 @@ class SessionManager:
             raise AttributeError("No bot found matching given API_KEY") from error
 
         self._api_key = api_key
-        self.sessions: List[NavigationManager] = []
+        self.sessions: List[NavigationHandler] = []
         self.start_message_args = None
 
         # on different commands - answer in Telegram
@@ -100,7 +83,7 @@ class SessionManager:
     def _send_start_message(self, update: Update, context: CallbackContext) -> None:  # pylint: disable=unused-argument
         """Start main message, app choice."""
         chat = update.effective_chat
-        session = NavigationManager(self._api_key, chat, self._scheduler)
+        session = NavigationHandler(self._api_key, chat, self._scheduler)
         self.sessions.append(session)
         if self.start_message_class is None:
             raise AttributeError("Message class not defined")
@@ -110,7 +93,7 @@ class SessionManager:
             start_message = self.start_message_class(session)
         session.goto_menu(start_message)
 
-    def get_session(self, chat_id: int = 0) -> Optional["NavigationManager"]:
+    def get_session(self, chat_id: int = 0) -> Optional["NavigationHandler"]:
         """Get session from list."""
         sessions = [x for x in self.sessions if chat_id in (x.chat_id, 0)]
         if not sessions:
@@ -155,8 +138,8 @@ class SessionManager:
             session.send_photo(picture_path, notification=notification)
 
 
-class NavigationManager:  # pylint: disable=too-many-instance-attributes
-    """Navigation manager for Telegram application."""
+class NavigationHandler:  # pylint: disable=too-many-instance-attributes
+    """Navigation handler for Telegram application."""
 
     POLL_DEADLINE = 10  # seconds
     MESSAGE_CHECK_TIMEOUT = 10  # seconds
@@ -212,10 +195,10 @@ class NavigationManager:  # pylint: disable=too-many-instance-attributes
 
     def goto_menu(self, menu_message: BaseMessage) -> int:
         """Send menu message and add to queue."""
-        title = menu_message.content_updater()
+        content = menu_message.update()
         self._logger.info("Opening menu %s", menu_message.label)
         keyboard = menu_message.gen_keyboard_content(inlined=False)
-        message = self.send_message(title, keyboard, notification=menu_message.notification)
+        message = self.send_message(content, keyboard, notification=menu_message.notification)
         menu_message.is_alive()
         self._menu_queue.append(menu_message)
         return message.message_id
@@ -229,7 +212,7 @@ class NavigationManager:  # pylint: disable=too-many-instance-attributes
 
     def _send_app_message(self, message: BaseMessage, label: str) -> int:
         """Send an application message."""
-        title = message.content_updater()
+        title = message.update()
         # if message with this label already exist in message_queue, delete it and replace it
         self._logger.info("Send message %s: %s", message.label, label)
         if "_" not in message.label:
@@ -270,7 +253,7 @@ class NavigationManager:  # pylint: disable=too-many-instance-attributes
             return False
 
         # check if content and keyboard have changed since previous message
-        content = message_updt.content_updater()
+        content = message_updt.update()
         if not self._message_check_changes(message_updt, content):
             return False
 

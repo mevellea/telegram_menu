@@ -1,3 +1,3 @@
-# -*- coding: utf-8 -*-
+#!/usr/bin/env python3
 
-"""home_talk tests."""
+"""Test telegram_menu package."""

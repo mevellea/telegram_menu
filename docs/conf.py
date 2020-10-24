@@ -1,23 +1,28 @@
-# -*- coding: utf-8 -*-
+#!/usr/bin/env python3
 
 """Sphinx documentation generation."""
 
 
 import os
 import sys
+import typing
+
+from ._version import __author__, __copyright__, __title__
 
 sys.path.insert(0, os.path.abspath(".."))
 
 
 # -- Project information -----------------------------------------------------
 
-project = "telegram-menu"
-copyright = "2020, Armel MEVELLEC"
-author = "Armel MEVELLEC"
+project = __title__
+copyright = __copyright__
+author = __author__
 
 # The full version, including alpha/beta/rc tags
-release = "1.0"
+release = _version
 
+# overwrite TYPE_CHECKING to load static type hints
+typing.TYPE_CHECKING = True
 
 # -- General configuration ---------------------------------------------------
 

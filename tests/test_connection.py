@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+#!/usr/bin/env python3
 
 """Test telegram_menu package."""
 
@@ -6,9 +6,9 @@ import datetime
 import logging
 import time
 import unittest
-from typing import Any, List
+from typing import Any, List, Optional
 
-from telegram_menu import BaseMessage, ButtonType, KeyboardContent, MenuButton, NavigationManager, SessionManager
+from telegram_menu import BaseMessage, ButtonType, KeyboardContent, MenuButton, NavigationHandler, TelegramMenuSession
 
 # this is a testing key, do not use it in production!
 API_KEY = "872134523:AAEe0_y78tnYYEWNUn2QRahnd48rjKhsxSA"
@@ -19,12 +19,13 @@ class OptionsAppMessage(BaseMessage):
 
     LABEL = "options"
 
-    def __init__(self, navigation: NavigationManager, update_callback: List[Any]) -> None:
+    def __init__(self, navigation: NavigationHandler, update_callback: Optional[List[Any]] = None) -> None:
         """Init OptionsAppMessage class."""
         super().__init__(navigation, OptionsAppMessage.LABEL, inlined=True)
 
         self.play_pause = True
-        update_callback.append(self.app_update_display)
+        if update_callback:
+            update_callback.append(self.app_update_display)
 
     def app_update_display(self) -> None:
         """Update message content when callback triggered."""
@@ -62,7 +63,7 @@ class OptionsAppMessage(BaseMessage):
         """Display poll answer."""
         logging.info("Answer is %s", poll_answer)
 
-    def content_updater(self) -> str:
+    def update(self) -> str:
         """Update message content."""
         poll_question = "Select one option:"
         poll_choices = ["Option1", "Option2", "Option3", "Option4", "Option5", "Option6", "Option7", "Option8"]
@@ -84,7 +85,7 @@ class ActionAppMessage(BaseMessage):
 
     LABEL = "action"
 
-    def __init__(self, navigation: NavigationManager) -> None:
+    def __init__(self, navigation: NavigationHandler) -> None:
         """Init ActionAppMessage class."""
         super().__init__(
             navigation,
@@ -94,7 +95,7 @@ class ActionAppMessage(BaseMessage):
             home_after=True,
         )
 
-    def content_updater(self) -> str:
+    def update(self) -> str:
         """Update message content."""
         return "<code>Action!</code>"
 
@@ -104,7 +105,7 @@ class SecondMenuMessage(BaseMessage):
 
     LABEL = "second_message"
 
-    def __init__(self, navigation: NavigationManager, update_callback: List[Any]) -> None:
+    def __init__(self, navigation: NavigationHandler, update_callback: Optional[List[Any]] = None) -> None:
         """Init SecondMenuMessage class."""
         super().__init__(
             navigation, SecondMenuMessage.LABEL, notification=False, expiry_period=datetime.timedelta(seconds=5)
@@ -116,7 +117,8 @@ class SecondMenuMessage(BaseMessage):
         self.add_button("Action", action_message)
         self.add_button("Back")
         self.add_button("Home")
-        update_callback.append(self.app_update_display)
+        if update_callback:
+            update_callback.append(self.app_update_display)
 
     def app_update_display(self) -> None:
         """Update message content when callback triggered."""
@@ -124,7 +126,7 @@ class SecondMenuMessage(BaseMessage):
         if edited:
             self.is_alive()
 
-    def content_updater(self) -> str:
+    def update(self) -> str:
         """Update message content."""
         return "Second message"
 
@@ -134,7 +136,7 @@ class StartMessage(BaseMessage):
 
     LABEL = "start"
 
-    def __init__(self, navigation: NavigationManager, update_callback: List[Any]) -> None:
+    def __init__(self, navigation: NavigationHandler, update_callback: Optional[List[Any]] = None) -> None:
         """Init StartMessage class."""
         super().__init__(navigation, StartMessage.LABEL)
 
@@ -144,7 +146,7 @@ class StartMessage(BaseMessage):
         self.add_button("Action", action_message)
         self.add_button("Second menu", second_menu)
 
-    def content_updater(self) -> str:
+    def update(self) -> str:
         """Update message content."""
         return "Start message!"
 
@@ -155,17 +157,17 @@ class Test(unittest.TestCase):
     def test_wrong_api_key(self) -> None:
         """Test starting a client with wrong key."""
         with self.assertRaises(AttributeError):
-            SessionManager(None)  # type: ignore
+            TelegramMenuSession(None)  # type: ignore
 
         with self.assertRaises(AttributeError):
-            SessionManager(1234)  # type: ignore
+            TelegramMenuSession(1234)  # type: ignore
 
         with self.assertRaises(AttributeError):
-            SessionManager("1234:5678")
+            TelegramMenuSession("1234:5678")
 
     def test_bad_start_message(self) -> None:
         """Test starting a client with bad start message."""
-        manager = SessionManager(API_KEY)
+        manager = TelegramMenuSession(API_KEY)
 
         with self.assertRaises(AttributeError):
             manager.start(MenuButton)
@@ -180,7 +182,7 @@ class Test(unittest.TestCase):
         init_logger()
         update_callback: List[Any] = []
 
-        manager = SessionManager(API_KEY)
+        manager = TelegramMenuSession(API_KEY)
         manager.start(StartMessage, update_callback)
 
         session = None

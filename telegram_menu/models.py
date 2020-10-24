@@ -1,21 +1,4 @@
-# -*- coding: utf-8 -*-
-#
-# A python library to generate navigation menus using Telegram Bot API
-# Copyright (C) 2020
-# Armel MEVELLEC <mevellea@gmail.com>
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Lesser Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Lesser Public License for more details.
-#
-# You should have received a copy of the GNU Lesser Public License
-# along with this program.  If not, see [http://www.gnu.org/licenses/].
+#!/usr/bin/env python3
 # pylint: disable=too-many-arguments
 
 """Messages and navigation models."""
@@ -31,7 +14,7 @@ import telegram
 from telegram import InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
 
 if TYPE_CHECKING:
-    from telegram_menu import NavigationManager
+    from telegram_menu import NavigationHandler
 
 KeyboardContent = List[Union[str, List[str]]]
 
@@ -90,7 +73,7 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
 
     def __init__(
         self,
-        navigation: "NavigationManager",
+        navigation: "NavigationHandler",
         label: str,
         expiry_period: Optional[datetime.timedelta] = None,
         inlined: bool = False,
@@ -120,6 +103,16 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
         )
 
         self._status = None
+
+    @abstractmethod
+    def update(self) -> str:
+        """Update message content.
+
+        Returns:
+            Message content formatted with markdown format.
+
+        """
+        raise NotImplementedError
 
     def get_button(self, label: str) -> Optional[MenuButton]:
         """Get button matching given label.
@@ -167,11 +160,6 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
 
         """
         return self._navigation.edit_message(self)
-
-    @abstractmethod
-    def content_updater(self) -> str:
-        """Update message content."""
-        raise NotImplementedError
 
     def gen_keyboard_content(self, inlined: Optional[bool] = None) -> Union[ReplyKeyboardMarkup, InlineKeyboardMarkup]:
         """Generate keyboard.

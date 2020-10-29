@@ -2,7 +2,7 @@
 
 """Telegram interfaces."""
 
-from .models import BaseMessage, ButtonType, KeyboardContent, MenuButton
+from .models import BaseMessage, ButtonType, MenuButton
 from .navigation import NavigationHandler, TelegramMenuSession
 
 __all__ = [
@@ -11,5 +11,4 @@ __all__ = [
     "BaseMessage",
     "ButtonType",
     "MenuButton",
-    "KeyboardContent",
 ]

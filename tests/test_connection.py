@@ -6,12 +6,16 @@ import datetime
 import logging
 import time
 import unittest
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Union
 
-from telegram_menu import BaseMessage, ButtonType, KeyboardContent, MenuButton, NavigationHandler, TelegramMenuSession
+import emoji
+
+from telegram_menu import BaseMessage, ButtonType, MenuButton, NavigationHandler, TelegramMenuSession
 
 # this is a testing key, do not use it in production!
 API_KEY = "872134523:AAEe0_y78tnYYEWNUn2QRahnd48rjKhsxSA"
+
+KeyboardContent = List[Union[str, List[str]]]
 
 
 class OptionsAppMessage(BaseMessage):
@@ -47,7 +51,7 @@ class OptionsAppMessage(BaseMessage):
         """Display any text data."""
         self.play_pause = not self.play_pause
         data: KeyboardContent = [["text1", "value1"], ["text2", "value2"]]
-        return self.format_list_to_html(data)
+        return format_list(data)
 
     def picture_button(self) -> str:
         """Display a picture."""
@@ -69,13 +73,22 @@ class OptionsAppMessage(BaseMessage):
         poll_choices = ["Option1", "Option2", "Option3", "Option4", "Option5", "Option6", "Option7", "Option8"]
         play_pause_button = "play_button" if self.play_pause else "pause_button"
         self.keyboard = [
-            MenuButton(self.emojize(play_pause_button), self.action_button),
-            MenuButton(self.emojize("twisted_rightwards_arrows"), self.action_button),
-            MenuButton(self.emojize("chart_with_upwards_trend"), self.picture_button, ButtonType.PICTURE),
-            MenuButton(self.emojize("chart_with_downwards_trend"), self.picture_button2, ButtonType.PICTURE),
-            MenuButton(self.emojize("door"), self.text_button, ButtonType.MESSAGE),
-            MenuButton(self.emojize("speaker_medium_volume"), self.action_button),
-            MenuButton(self.emojize("question"), self.action_poll, ButtonType.POLL, args=[poll_question, poll_choices]),
+            MenuButton(label=emojize(play_pause_button), callback=self.action_button),
+            MenuButton(label=emojize("twisted_rightwards_arrows"), callback=self.action_button),
+            MenuButton(
+                label=emojize("chart_with_upwards_trend"), callback=self.picture_button, btype=ButtonType.PICTURE
+            ),
+            MenuButton(
+                label=emojize("chart_with_downwards_trend"), callback=self.picture_button2, btype=ButtonType.PICTURE
+            ),
+            MenuButton(label=emojize("door"), callback=self.text_button, btype=ButtonType.MESSAGE),
+            MenuButton(label=emojize("speaker_medium_volume"), callback=self.action_button),
+            MenuButton(
+                label=emojize("question"),
+                callback=self.action_poll,
+                btype=ButtonType.POLL,
+                args=[poll_question, poll_choices],
+            ),
         ]
         return "Status updated!"
 
@@ -113,10 +126,10 @@ class SecondMenuMessage(BaseMessage):
 
         action_message = ActionAppMessage(self._navigation)
         option_message = OptionsAppMessage(self._navigation, update_callback)
-        self.add_button("Option", option_message)
-        self.add_button("Action", action_message)
-        self.add_button("Back")
-        self.add_button("Home")
+        self.add_button(label="Option", callback=option_message)
+        self.add_button(label="Action", callback=action_message)
+        self.add_button(label="Back")
+        self.add_button(label="Home")
         if update_callback:
             update_callback.append(self.app_update_display)
 
@@ -143,8 +156,8 @@ class StartMessage(BaseMessage):
         # define menu buttons
         action_message = ActionAppMessage(navigation)
         second_menu = SecondMenuMessage(navigation, update_callback)
-        self.add_button("Action", action_message)
-        self.add_button("Second menu", second_menu)
+        self.add_button(label="Action", callback=action_message)
+        self.add_button(label="Second menu", callback=second_menu)
 
     def update(self) -> str:
         """Update message content."""
@@ -180,12 +193,12 @@ class Test(unittest.TestCase):
     def test_client_connection(self) -> None:
         """Run the client test."""
         init_logger()
+
         update_callback: List[Any] = []
+        session: Optional["NavigationHandler"] = None
 
-        manager = TelegramMenuSession(API_KEY)
-        manager.start(StartMessage, update_callback)
-
-        session = None
+        manager = TelegramMenuSession(api_key=API_KEY)
+        manager.start(start_message_class=StartMessage, start_message_args=update_callback)
         while not session:
             session = manager.get_session()
             time.sleep(1)
@@ -194,6 +207,7 @@ class Test(unittest.TestCase):
         manager.broadcast_picture("picture_path")
         msg_id = session.select_menu_button("Action")
         self.assertGreater(msg_id, 1)
+
         time.sleep(0.5)
         manager.broadcast_message("Test message")
         time.sleep(0.5)
@@ -239,3 +253,41 @@ def init_logger() -> None:
     # start scheduler
     logging.getLogger("apscheduler.scheduler").setLevel(logging.ERROR)
     logging.getLogger("apscheduler.executors").setLevel(logging.ERROR)
+
+
+def format_list(args_array: KeyboardContent) -> str:
+    """Format array of strings in html, first element bold.
+
+    Args:
+        args_array: text content
+
+    Returns:
+        Message content as formatted string
+
+    """
+    content = ""
+    for line in args_array:
+        if not isinstance(line, list):
+            content += f"<b>{line}</b>"
+            continue
+        if line[0]:
+            content += f"<b>{line[0]}</b>"
+            if line[1]:
+                content += ": "
+        if line[1]:
+            content += line[1]
+        content += "\n"
+    return content
+
+
+def emojize(emoji_name: str) -> str:
+    """Get utf-16 code for emoji, defined in https://www.webfx.com/tools/emoji-cheat-sheet/.
+
+    Args:
+        emoji_name: emoji label
+
+    Returns:
+        emoji encoded as string
+
+    """
+    return emoji.emojize(f":{emoji_name}:", use_aliases=True)

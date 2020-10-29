@@ -9,7 +9,6 @@ from abc import ABC, abstractmethod
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, List, Optional, Union
 
-import emoji
 import telegram
 from telegram import InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
 
@@ -129,19 +128,6 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
         """
         return next(iter(x for x in self.keyboard if x.label == label), None)
 
-    @staticmethod
-    def emojize(emoji_name: str) -> str:
-        """Get utf-16 code for emoji, defined in https://www.webfx.com/tools/emoji-cheat-sheet/.
-
-        Args:
-            emoji_name: emoji label
-
-        Returns:
-            emoji encoded as string
-
-        """
-        return emoji.emojize(f":{emoji_name}:", use_aliases=True)
-
     def add_button(self, label: str, callback: Any = None) -> None:
         """Add a button to keyboard attribute.
 
@@ -228,26 +214,3 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
     def kill_message(self) -> None:
         """Display status before message is destroyed."""
         self._logger.debug("Removing message '%s' (%s)", self.label, self.message_id)
-
-    @staticmethod
-    def format_list_to_html(args_array: KeyboardContent) -> str:
-        """Format array of strings in html, first element bold.
-
-        Args:
-            args_array: text content
-
-        """
-        content = ""
-        for line in args_array:
-            if isinstance(line, list):
-                if line[0] != "":
-                    content += f"<b>{line[0]}</b>"
-                    if line[1] != "":
-                        content += ": "
-                if line[1] != "":
-                    content += line[1]
-            else:
-                content += f"<b>{line}</b>"
-
-            content += "\n"
-        return content

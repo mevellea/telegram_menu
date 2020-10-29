@@ -67,25 +67,27 @@ You can add any button in ``StartMessage``\ , using ``self.add_button()`` method
 .. code-block:: python
 
    # 'run_and_notify' function executes an action and return a string as Telegram notification.
-   self.add_button("Action", self.run_and_notify)
+   self.add_button(label="Action", callback=self.run_and_notify)
 
    # 'new_menu_app' is a class derived from MenuMessage or AppMessage, which will generate a new menu or a message.
-   self.add_button("NewMenu", new_menu_app)
+   self.add_button(label="NewMenu", callback=new_menu_app)
 
 An application message can contain several inlined buttons. The behavior is similar to MenuMessage buttons.
 
 .. code-block:: python
 
    # 'get_content' function generates some text to display, eventually with markdown formatting
-   self.add_button("Display content", self.get_content, ButtonType.MESSAGE)
+   self.add_button(label="Display content", callback=self.get_content, btype=ButtonType.MESSAGE)
 
    # 'get_picture' function returns the path of a picture to display in Telegram
-   self.add_button("Show picture", self.get_picture, ButtonType.PICTURE)
+   self.add_button(label="Show picture", callback=self.get_picture, btype=ButtonType.PICTURE)
 
    # new buttons can be added to the 'keyboard' property of the message instance too.
    # next poll message will get items to display from function 'get_playlists_arg', and run 'select_playlist' when 
    # the poll button is selected, identified with emoji 'closed_book'
-   poll_button = MenuButton(self.emojize("closed_book"), self.select_playlist, ButtonType.POLL, self.get_playlists_arg())
+   poll_button = MenuButton(
+       label=emojize("closed_book"), callback=self.select_playlist, btype=ButtonType.POLL, args=self.get_playlists_arg()
+   )
    self.keyboard.append(poll_button)
 
 Structure

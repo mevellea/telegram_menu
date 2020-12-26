@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 # pylint: disable=too-many-arguments
 
 """Messages and navigation models."""
@@ -34,6 +35,7 @@ class MenuButton:  # pylint: disable=too-few-public-methods
         label: button label
         callback: method called on button selection
         btype: button type
+        args: argument passed to the callback
         notification: send notification to user
 
     """
@@ -63,6 +65,7 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
         expiry_period: duration before the message is deleted
         inlined: create an inlined message instead of a menu message
         home_after: go back to home menu after executing the action
+        notification: show a notification in Telegram interface
 
     """
 
@@ -78,7 +81,7 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
         inlined: bool = False,
         home_after: bool = False,
         notification: bool = True,
-    ):
+    ) -> None:
         """Init BaseMessage class."""
         self._logger = logging.getLogger(__name__)
         self._logger.setLevel(logging.DEBUG)

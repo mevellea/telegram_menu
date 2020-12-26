@@ -4,25 +4,37 @@
 
 call_black()
 {
+  echo "### Call black"
   black . -l 120
 }
 
-call_pylama()
+call_pylint()
 {
-  pylama -o pylama.ini telegram_menu
-  pylama -o pylama.ini tests
+  echo "### Call pylint"
+  pylint telegram_menu
+}
+
+call_pystyle()
+{
+  echo "### Call pydocstyle"
+  pydocstyle .
+  echo "### Call pycodestyle"
+  pycodestyle --max-line-length=120 .
 }
 
 call_mypy()
 {
+  echo "### Call Mypy"
   mypy --config-file mypy.ini .
 }
 
 call_isort()
 {
-  isort -l 120 -rc .
+  echo "### Call isort"
+  isort -l 120 .
 }
 
+# shellcheck disable=SC2120
 call_coverage()
 {
   coverage run --source=telegram_menu -m pytest -s -W ignore::DeprecationWarning
@@ -68,8 +80,9 @@ call_check()
   start_venv
   call_isort
   call_black
-  call_pylama
-  call_gendoc
+  call_mypy
+  call_pystyle
+  call_pylint
   call_coverage
 }
 

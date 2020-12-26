@@ -1,6 +1,8 @@
-"""telegram_menu package installer."""
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+# mypy: ignore-errors
 
-import os
+"""telegram_menu package installer."""
 
 from setuptools import find_packages, setup
 
@@ -19,6 +21,7 @@ setup(
     author=__author__,
     author_email=__author_email__,
     license=__license__,
+    package_data={"telegram_menu": ["py.typed"]},
     packages=find_packages(),
     install_requires=[],
     tests_require=["tox>=3.5.0,<4.0.0"],

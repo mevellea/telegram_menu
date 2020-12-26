@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 """Telegram menu navigation."""
 
@@ -15,6 +16,7 @@ from telegram import Bot, Chat, ChatAction, Poll, ReplyKeyboardMarkup
 from telegram.error import Unauthorized
 from telegram.ext import CallbackQueryHandler, CommandHandler, MessageHandler
 from telegram.ext.callbackcontext import CallbackContext
+from telegram.parsemode import ParseMode
 from telegram.update import Update
 from telegram.utils.request import Request
 
@@ -241,7 +243,7 @@ class NavigationHandler:  # pylint: disable=too-many-instance-attributes
         return self._bot.send_message(
             chat_id=self.chat_id,
             text=content,
-            parse_mode="HTML",
+            parse_mode=ParseMode.HTML,
             reply_markup=keyboard,
             disable_notification=not notification,
         )
@@ -263,7 +265,7 @@ class NavigationHandler:  # pylint: disable=too-many-instance-attributes
                 text=content,
                 chat_id=self.chat_id,
                 message_id=message_updt.message_id,
-                parse_mode="HTML",
+                parse_mode=ParseMode.HTML,
                 reply_markup=keyboard_format,
             )
         except telegram.error.BadRequest as error:

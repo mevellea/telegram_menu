@@ -6,10 +6,12 @@
 
 import datetime
 import logging
+import re
 from abc import ABC, abstractmethod
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, List, Optional, Union
 
+import emoji
 import telegram
 from telegram import InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
 
@@ -49,8 +51,8 @@ class MenuButton:  # pylint: disable=too-few-public-methods
         notification: bool = True,
     ):
         """Init MenuButton class."""
-        self.label = label
-        self.callback: Any = callback
+        self.label = emoji_replace(label)
+        self.callback = callback
         self.btype = btype
         self.args = args
         self.notification = notification
@@ -87,7 +89,7 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
         self._logger.setLevel(logging.DEBUG)
 
         self.keyboard: List[MenuButton] = []
-        self.label = label
+        self.label = emoji_replace(label)
         self.inlined = inlined
         self.notification = notification
         self._navigation = navigation
@@ -200,7 +202,7 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
         return array
 
     def is_alive(self) -> None:
-        """Update message time stamp."""
+        """Update message timestamp."""
         self.time_alive = datetime.datetime.now()
 
     def has_expired(self) -> bool:
@@ -217,3 +219,17 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
     def kill_message(self) -> None:
         """Display status before message is destroyed."""
         self._logger.debug("Removing message '%s' (%s)", self.label, self.message_id)
+
+
+def emoji_replace(label: str) -> str:
+    """Replace emoji token with utf-16 code."""
+    if not label:
+        raise AttributeError("Empty label")
+
+    match_emoji = re.findall(r"(:\w+:)", label)
+    for item in match_emoji:
+        emoji_str = emoji.emojize(item, use_aliases=True)
+        if emoji_str == item:
+            raise AttributeError(f"No emoji found for '{item}'")
+        label = label.replace(item, emoji_str)
+    return label

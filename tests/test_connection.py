@@ -8,8 +8,6 @@ import time
 import unittest
 from typing import Any, List, Optional, Union
 
-import emoji
-
 from telegram_menu import BaseMessage, ButtonType, MenuButton, NavigationHandler, TelegramMenuSession
 
 # this is a testing key, do not use it in production!
@@ -71,20 +69,16 @@ class OptionsAppMessage(BaseMessage):
         """Update message content."""
         poll_question = "Select one option:"
         poll_choices = ["Option1", "Option2", "Option3", "Option4", "Option5", "Option6", "Option7", "Option8"]
-        play_pause_button = "play_button" if self.play_pause else "pause_button"
+        play_pause_button = ":play_button:" if self.play_pause else ":pause_button:"
         self.keyboard = [
-            MenuButton(label=emojize(play_pause_button), callback=self.action_button),
-            MenuButton(label=emojize("twisted_rightwards_arrows"), callback=self.action_button),
+            MenuButton(play_pause_button, callback=self.action_button),
+            MenuButton(":twisted_rightwards_arrows:", callback=self.action_button),
+            MenuButton(":chart_with_upwards_trend:", callback=self.picture_button, btype=ButtonType.PICTURE),
+            MenuButton(":chart_with_downwards_trend:", callback=self.picture_button2, btype=ButtonType.PICTURE),
+            MenuButton(":door:", callback=self.text_button, btype=ButtonType.MESSAGE),
+            MenuButton(":speaker_medium_volume:", callback=self.action_button),
             MenuButton(
-                label=emojize("chart_with_upwards_trend"), callback=self.picture_button, btype=ButtonType.PICTURE
-            ),
-            MenuButton(
-                label=emojize("chart_with_downwards_trend"), callback=self.picture_button2, btype=ButtonType.PICTURE
-            ),
-            MenuButton(label=emojize("door"), callback=self.text_button, btype=ButtonType.MESSAGE),
-            MenuButton(label=emojize("speaker_medium_volume"), callback=self.action_button),
-            MenuButton(
-                label=emojize("question"),
+                ":question:",
                 callback=self.action_poll,
                 btype=ButtonType.POLL,
                 args=[poll_question, poll_choices],
@@ -167,7 +161,7 @@ class StartMessage(BaseMessage):
 class Test(unittest.TestCase):
     """The basic class that inherits unittest.TestCase."""
 
-    def test_wrong_api_key(self) -> None:
+    def test_1_wrong_api_key(self) -> None:
         """Test starting a client with wrong key."""
         with self.assertRaises(AttributeError):
             TelegramMenuSession(None)  # type: ignore
@@ -178,7 +172,24 @@ class Test(unittest.TestCase):
         with self.assertRaises(AttributeError):
             TelegramMenuSession("1234:5678")
 
-    def test_bad_start_message(self) -> None:
+    def test_2_label_emoji(self) -> None:
+        """Check replacement of emoji."""
+        vectors = [
+            {"input": "lbl", "output": "lbl"},
+            {"input": ":play_button:", "output": "▶"},
+            {"input": ":play_button:-:play_button::", "output": "▶-▶:"},
+            {"input": ":play_button: , :pause_button:", "output": "▶ , ⏸"},
+        ]
+        for vector in vectors:
+            button = MenuButton(label=vector["input"])
+            self.assertEqual(button.label, vector["output"])
+
+        # undefined emoji raise an exception
+        with self.assertRaises(AttributeError) as error:
+            MenuButton(label=":lbl:")
+        self.assertTrue("No emoji found for ':lbl:'" == str(error.exception))
+
+    def test_3_bad_start_message(self) -> None:
         """Test starting a client with bad start message."""
         manager = TelegramMenuSession(API_KEY)
 
@@ -190,7 +201,7 @@ class Test(unittest.TestCase):
 
         manager.updater.stop()
 
-    def test_client_connection(self) -> None:
+    def test_4_client_connection(self) -> None:
         """Run the client test."""
         init_logger()
 
@@ -278,16 +289,3 @@ def format_list(args_array: KeyboardContent) -> str:
             content += line[1]
         content += "\n"
     return content
-
-
-def emojize(emoji_name: str) -> str:
-    """Get utf-16 code for emoji, defined in https://www.webfx.com/tools/emoji-cheat-sheet/.
-
-    Args:
-        emoji_name: emoji label
-
-    Returns:
-        emoji encoded as string
-
-    """
-    return emoji.emojize(f":{emoji_name}:", use_aliases=True)

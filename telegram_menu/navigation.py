@@ -20,7 +20,7 @@ from telegram.parsemode import ParseMode
 from telegram.update import Update
 from telegram.utils.request import Request
 
-from .models import BaseMessage, ButtonType
+from .models import BaseMessage, ButtonType, emoji_replace
 
 
 class TelegramMenuSession:
@@ -200,7 +200,7 @@ class NavigationHandler:  # pylint: disable=too-many-instance-attributes
         content = menu_message.update()
         self._logger.info("Opening menu %s", menu_message.label)
         keyboard = menu_message.gen_keyboard_content(inlined=False)
-        message = self.send_message(content, keyboard, notification=menu_message.notification)
+        message = self.send_message(emoji_replace(content), keyboard, notification=menu_message.notification)
         menu_message.is_alive()
         self._menu_queue.append(menu_message)
         return message.message_id
@@ -214,7 +214,7 @@ class NavigationHandler:  # pylint: disable=too-many-instance-attributes
 
     def _send_app_message(self, message: BaseMessage, label: str) -> int:
         """Send an application message."""
-        title = message.update()
+        content = emoji_replace(message.update())
         # if message with this label already exist in message_queue, delete it and replace it
         self._logger.info("Send message %s: %s", message.label, label)
         if "_" not in message.label:
@@ -228,11 +228,11 @@ class NavigationHandler:  # pylint: disable=too-many-instance-attributes
         message.is_alive()
 
         keyboard = message.gen_keyboard_content(inlined=True)
-        msg = self.send_message(title, keyboard, message.notification)
+        msg = self.send_message(content, keyboard, message.notification)
         message.message_id = msg.message_id
         self._message_queue.append(message)
 
-        message.content_previous = title
+        message.content_previous = content
         message.keyboard_previous = message.keyboard.copy()
         return message.message_id
 
@@ -255,7 +255,7 @@ class NavigationHandler:  # pylint: disable=too-many-instance-attributes
             return False
 
         # check if content and keyboard have changed since previous message
-        content = message_updt.update()
+        content = emoji_replace(message_updt.update())
         if not self._message_check_changes(message_updt, content):
             return False
 
@@ -297,12 +297,13 @@ class NavigationHandler:  # pylint: disable=too-many-instance-attributes
             button_found = menu_item.get_button(label)
             if button_found:
                 message_callback = button_found.callback
-                if message_callback.inlined:
-                    msg_id = self._send_app_message(message_callback, label)
-                    if message_callback.home_after:
-                        msg_id = self.goto_home()
-                else:
-                    msg_id = self.goto_menu(message_callback)
+                if isinstance(message_callback, BaseMessage):
+                    if message_callback.inlined:
+                        msg_id = self._send_app_message(message_callback, label)
+                        if message_callback.home_after:
+                            msg_id = self.goto_home()
+                    else:
+                        msg_id = self.goto_menu(message_callback)
                 return msg_id
         return 0
 

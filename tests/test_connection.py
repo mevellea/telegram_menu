@@ -68,7 +68,7 @@ class OptionsAppMessage(BaseMessage):
     def update(self) -> str:
         """Update message content."""
         poll_question = "Select one option:"
-        poll_choices = ["Option1", "Option2", "Option3", "Option4", "Option5", "Option6", "Option7", "Option8"]
+        poll_choices = [":play_button: Option " + str(x) for x in range(6)]
         play_pause_button = ":play_button:" if self.play_pause else ":pause_button:"
         self.keyboard = [
             MenuButton(play_pause_button, callback=self.action_button),

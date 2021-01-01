@@ -368,8 +368,13 @@ class NavigationHandler:  # pylint: disable=too-many-instance-attributes
         """Send poll to user with question and options."""
         if self.scheduler.get_job(self.poll_name) is not None:
             self.poll_delete()
+        options = [emoji_replace(x) for x in options]
         self._poll = self._bot.send_poll(
-            chat_id=self.chat_id, question=question, options=options, is_anonymous=False, open_period=self.POLL_DEADLINE
+            chat_id=self.chat_id,
+            question=emoji_replace(question),
+            options=options,
+            is_anonymous=False,
+            open_period=self.POLL_DEADLINE,
         )
         self.scheduler.add_job(
             self.poll_delete,

@@ -4,14 +4,12 @@
 
 import datetime
 import logging
+import os
 import time
 import unittest
 from typing import Any, List, Optional, Union
 
 from telegram_menu import BaseMessage, ButtonType, MenuButton, NavigationHandler, TelegramMenuSession
-
-# this is a testing key, do not use it in production!
-API_KEY = "872134523:AAEe0_y78tnYYEWNUn2QRahnd48rjKhsxSA"
 
 KeyboardContent = List[Union[str, List[str]]]
 
@@ -161,6 +159,11 @@ class StartMessage(BaseMessage):
 class Test(unittest.TestCase):
     """The basic class that inherits unittest.TestCase."""
 
+    def setUp(self) -> None:
+        key_file = os.path.join(os.path.expanduser("~"), ".telegram_menu", "key.txt")
+        with open(key_file, "r") as key_h:
+            self.api_key = key_h.read().strip()
+
     def test_1_wrong_api_key(self) -> None:
         """Test starting a client with wrong key."""
         with self.assertRaises(AttributeError):
@@ -191,7 +194,7 @@ class Test(unittest.TestCase):
 
     def test_3_bad_start_message(self) -> None:
         """Test starting a client with bad start message."""
-        manager = TelegramMenuSession(API_KEY)
+        manager = TelegramMenuSession(self.api_key)
 
         with self.assertRaises(AttributeError):
             manager.start(MenuButton)
@@ -208,7 +211,7 @@ class Test(unittest.TestCase):
         update_callback: List[Any] = []
         session: Optional["NavigationHandler"] = None
 
-        manager = TelegramMenuSession(api_key=API_KEY)
+        manager = TelegramMenuSession(api_key=self.api_key)
         manager.start(start_message_class=StartMessage, start_message_args=update_callback)
         while not session:
             session = manager.get_session()

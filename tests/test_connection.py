@@ -179,6 +179,8 @@ class Test(unittest.TestCase):
         """Check replacement of emoji."""
         vectors = [
             {"input": "lbl", "output": "lbl"},
+            {"input": ":lbl:", "output": ":lbl:"},
+            {"input": "", "output": ""},
             {"input": ":play_button:", "output": "▶"},
             {"input": ":play_button:-:play_button::", "output": "▶-▶:"},
             {"input": ":play_button: , :pause_button:", "output": "▶ , ⏸"},
@@ -186,11 +188,6 @@ class Test(unittest.TestCase):
         for vector in vectors:
             button = MenuButton(label=vector["input"])
             self.assertEqual(button.label, vector["output"])
-
-        # undefined emoji raise an exception
-        with self.assertRaises(AttributeError) as error:
-            MenuButton(label=":lbl:")
-        self.assertTrue("No emoji found for ':lbl:'" == str(error.exception))
 
     def test_3_bad_start_message(self) -> None:
         """Test starting a client with bad start message."""

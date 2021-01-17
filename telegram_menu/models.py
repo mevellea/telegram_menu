@@ -8,6 +8,7 @@ import datetime
 import logging
 import re
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, List, Optional, Union
 
@@ -17,6 +18,9 @@ from telegram import InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
 
 if TYPE_CHECKING:
     from telegram_menu import NavigationHandler
+
+
+logger = logging.getLogger(__name__)
 
 KeyboardContent = List[Union[str, List[str]]]
 
@@ -30,6 +34,7 @@ class ButtonType(Enum):
     POLL = auto()
 
 
+@dataclass
 class MenuButton:  # pylint: disable=too-few-public-methods
     """Base button class, wrapper for label with callback.
 
@@ -85,9 +90,6 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
         notification: bool = True,
     ) -> None:
         """Init BaseMessage class."""
-        self._logger = logging.getLogger(__name__)
-        self._logger.setLevel(logging.DEBUG)
-
         self.keyboard: List[MenuButton] = []
         self.label = emoji_replace(label)
         self.inlined = inlined
@@ -113,7 +115,7 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
         """Update message content.
 
         Returns:
-            Message content formatted with markdown format.
+            Message content formatted with HTML formatting.
 
         """
         raise NotImplementedError
@@ -218,18 +220,13 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
 
     def kill_message(self) -> None:
         """Display status before message is destroyed."""
-        self._logger.debug("Removing message '%s' (%s)", self.label, self.message_id)
+        logger.debug("Removing message '%s' (%s)", self.label, self.message_id)
 
 
 def emoji_replace(label: str) -> str:
     """Replace emoji token with utf-16 code."""
-    if not label:
-        raise AttributeError("Empty label")
-
     match_emoji = re.findall(r"(:\w+:)", label)
     for item in match_emoji:
         emoji_str = emoji.emojize(item, use_aliases=True)
-        if emoji_str == item:
-            raise AttributeError(f"No emoji found for '{item}'")
         label = label.replace(item, emoji_str)
     return label

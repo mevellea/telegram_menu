@@ -22,6 +22,8 @@ from telegram.utils.request import Request
 
 from .models import BaseMessage, ButtonType, emoji_replace
 
+logger = logging.getLogger(__name__)
+
 
 class TelegramMenuSession:
     """Session manager, send start message to each new user connecting to the bot."""
@@ -50,11 +52,8 @@ class TelegramMenuSession:
             request_kwargs={"read_timeout": self.READ_TIMEOUT, "connect_timeout": self.CONNECT_TIMEOUT},
         )
         bot = self.updater.bot
-
-        self._logger = logging.getLogger(__name__)
-        self._logger.setLevel(logging.INFO)
         try:
-            self._logger.info("Connected with Telegram bot %s (%s)", bot.name, bot.first_name)
+            logger.info("Connected with Telegram bot %s (%s)", bot.name, bot.first_name)
         except Unauthorized as error:
             raise AttributeError("No bot found matching given API_KEY") from error
 
@@ -82,7 +81,7 @@ class TelegramMenuSession:
             self._scheduler.start()
         self.updater.start_polling()
 
-    def _send_start_message(self, update: Update, context: CallbackContext) -> None:  # pylint: disable=unused-argument
+    def _send_start_message(self, update: Update, _: CallbackContext) -> None:
         """Start main message, app choice."""
         chat = update.effective_chat
         session = NavigationHandler(self._api_key, chat, self._scheduler)
@@ -110,7 +109,7 @@ class TelegramMenuSession:
             return
         session.select_menu_button(update.message.text)
 
-    def _poll_answer(self, update: Update, context: CallbackContext) -> None:  # pylint: disable=unused-argument
+    def _poll_answer(self, update: Update, _: CallbackContext) -> None:
         """Entry point for poll selection."""
         session = next((x for x in self.sessions if x.user_name == update.effective_user.first_name), None)
         if session:
@@ -124,10 +123,11 @@ class TelegramMenuSession:
             return
         session.app_message_button_callback(update.callback_query.data, update.callback_query.id)
 
-    def _msg_error_handler(self, update: Update, context: CallbackContext) -> None:
+    @staticmethod
+    def _msg_error_handler(update: Update, context: CallbackContext) -> None:
         """Log Errors caused by Updates."""
         error_message = str(context.error) if update is None else f"Update {update.update_id} - {str(context.error)}"
-        self._logger.error(error_message)
+        logger.error(error_message)
 
     def broadcast_message(self, message: str, notification: bool = True) -> None:
         """Broadcast simple message without keyboard markup to all sessions."""
@@ -161,9 +161,7 @@ class NavigationHandler:  # pylint: disable=too-many-instance-attributes
         self.user_name = chat.first_name
         self.poll_name = f"poll_{self.user_name}"
 
-        self._logger = logging.getLogger(__name__)
-        self._logger.setLevel(logging.INFO)
-        self._logger.info("Opening chat with user %s", self.user_name)
+        logger.info("Opening chat with user %s", self.user_name)
 
         self._menu_queue: List[BaseMessage] = []  # list of menus selected by user
         self._message_queue: List[BaseMessage] = []  # list of application messages sent
@@ -198,7 +196,7 @@ class NavigationHandler:  # pylint: disable=too-many-instance-attributes
     def goto_menu(self, menu_message: BaseMessage) -> int:
         """Send menu message and add to queue."""
         content = menu_message.update()
-        self._logger.info("Opening menu %s", menu_message.label)
+        logger.info("Opening menu %s", menu_message.label)
         keyboard = menu_message.gen_keyboard_content(inlined=False)
         message = self.send_message(emoji_replace(content), keyboard, notification=menu_message.notification)
         menu_message.is_alive()
@@ -216,7 +214,7 @@ class NavigationHandler:  # pylint: disable=too-many-instance-attributes
         """Send an application message."""
         content = emoji_replace(message.update())
         # if message with this label already exist in message_queue, delete it and replace it
-        self._logger.info("Send message %s: %s", message.label, label)
+        logger.info("Send message %s: %s", message.label, label)
         if "_" not in message.label:
             message.label = f"{message.label}_{label}"
 
@@ -269,7 +267,7 @@ class NavigationHandler:  # pylint: disable=too-many-instance-attributes
                 reply_markup=keyboard_format,
             )
         except telegram.error.BadRequest as error:
-            self._logger.error(error)
+            logger.error(error)
             return False
         return True
 
@@ -304,16 +302,16 @@ class NavigationHandler:  # pylint: disable=too-many-instance-attributes
                             msg_id = self.goto_home()
                     else:
                         msg_id = self.goto_menu(message_callback)
-                return msg_id
+                    return msg_id
         return 0
 
     def app_message_button_callback(self, callback_label: str, callback_id: str) -> None:
         """Entry point to execute an action after message button selection."""
         label_message, label_action = callback_label.split(".")
-        self._logger.info("Received action request from %s: %s", label_message, label_action)
+        logger.info("Received action request from %s: %s", label_message, label_action)
         message = self.get_message(label_message)
         if message is None:
-            self._logger.error("Message with label %s not found, return", label_message)
+            logger.error("Message with label %s not found, return", label_message)
             return
         button_found = message.get_button(label_action)
 
@@ -321,8 +319,10 @@ class NavigationHandler:  # pylint: disable=too-many-instance-attributes
             return
 
         if button_found.btype == ButtonType.PICTURE:
+            # noinspection PyTypeChecker
             self._bot.send_chat_action(chat_id=self.chat_id, action=ChatAction.UPLOAD_PHOTO)
         elif button_found.btype == ButtonType.MESSAGE:
+            # noinspection PyTypeChecker
             self._bot.send_chat_action(chat_id=self.chat_id, action=ChatAction.TYPING)
         elif button_found.btype == ButtonType.POLL:
             self.send_poll(question=button_found.args[0], options=button_found.args[1])
@@ -356,7 +356,7 @@ class NavigationHandler:  # pylint: disable=too-many-instance-attributes
         if picture_path is None or not picture_path or not os.path.isfile(picture_path):
             dir_path = os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir))
             picture_path = os.path.join(dir_path, self.PICTURE_DEFAULT)
-            self._logger.error("Picture not defined, replacing with default %s", self.PICTURE_DEFAULT)
+            logger.error("Picture not defined, replacing with default %s", self.PICTURE_DEFAULT)
         with open(picture_path, "rb") as file_h:
             return self._bot.send_photo(chat_id=self.chat_id, photo=file_h, disable_notification=not notification)
 
@@ -388,18 +388,18 @@ class NavigationHandler:  # pylint: disable=too-many-instance-attributes
         """Run when poll timeout has expired."""
         if self._poll is not None:
             try:
-                self._logger.info("Deleting poll '%s'", self._poll.poll.question)
+                logger.info("Deleting poll '%s'", self._poll.poll.question)
                 self._bot.delete_message(chat_id=self.chat_id, message_id=self._poll.message_id)
             except telegram.error.BadRequest:
-                self._logger.error("Poll message %s already deleted", self._poll.message_id)
+                logger.error("Poll message %s already deleted", self._poll.message_id)
 
     def poll_answer(self, answer_id: int) -> None:
         """Run when poll message is received."""
         if self._poll is None or self._poll_calback is None:
-            self._logger.error("Poll is not defined")
+            logger.error("Poll is not defined")
             return
 
-        self._logger.info(
+        logger.info(
             "%s's answer to question '%s' is '%s'",
             self.user_name,
             self._poll.poll.question,

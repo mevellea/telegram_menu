@@ -11,6 +11,8 @@ exec(open("telegram_menu/_version.py").read())
 with open("README.md", "r") as fh:
     LONG_DESCRIPTION = fh.read()
 
+requires = open("requirements.txt").read().strip().split("\n")
+
 setup(
     name=__title__,
     version=__version__,
@@ -23,7 +25,7 @@ setup(
     license=__license__,
     package_data={"telegram_menu": ["py.typed"]},
     packages=find_packages(),
-    install_requires=[],
+    install_requires=requires,
     tests_require=["tox>=3.5.0,<4.0.0"],
     platforms=["any"],
     keywords="telegram",

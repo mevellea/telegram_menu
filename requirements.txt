@@ -1,3 +1,4 @@
 apscheduler~=3.6.3
 emoji
 python-telegram-bot==13.0
+validators

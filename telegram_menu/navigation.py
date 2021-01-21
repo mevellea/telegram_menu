@@ -3,13 +3,6 @@
 
 """Telegram menu navigation."""
 
-import datetime
-import logging
-import os
-import time
-from typing import Any, List, Optional
-
-import telegram.ext
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.schedulers.base import BaseScheduler
 from telegram import Bot, Chat, ChatAction, Poll, ReplyKeyboardMarkup
@@ -19,8 +12,15 @@ from telegram.ext.callbackcontext import CallbackContext
 from telegram.parsemode import ParseMode
 from telegram.update import Update
 from telegram.utils.request import Request
-
 from .models import BaseMessage, ButtonType, emoji_replace
+from typing import Any, List, Optional
+import telegram.ext
+import validators
+import datetime
+import logging
+import imghdr
+import time
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -353,12 +353,18 @@ class NavigationHandler:  # pylint: disable=too-many-instance-attributes
 
     def send_photo(self, picture_path: str, notification: bool = True) -> telegram.Message:
         """Send a picture."""
-        if picture_path is None or not picture_path or not os.path.isfile(picture_path):
+        try:
+            if validators.url(picture_path):
+                pass
+            elif os.path.isfile(picture_path) and imghdr.what(picture_path):
+                picture_path = open(picture_path, "rb")
+            else:
+                raise ValueError("Argument is not a picture")
+        except Exception:
             dir_path = os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir))
-            picture_path = os.path.join(dir_path, self.PICTURE_DEFAULT)
-            logger.error("Picture not defined, replacing with default %s", self.PICTURE_DEFAULT)
-        with open(picture_path, "rb") as file_h:
-            return self._bot.send_photo(chat_id=self.chat_id, photo=file_h, disable_notification=not notification)
+            picture_path = open(os.path.join(dir_path, self.PICTURE_DEFAULT), "rb")
+            logger.error("Replacing with default %s", self.PICTURE_DEFAULT)
+        return self._bot.send_photo(chat_id=self.chat_id, photo=picture_path, disable_notification=not notification)
 
     def get_message(self, label_message: str) -> Optional[BaseMessage]:
         """Get message from message_queue matching attribute label_message."""

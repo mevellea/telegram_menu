@@ -4,6 +4,7 @@
 
 import os
 import time
+from pathlib import Path
 
 from telegram_menu import TelegramMenuSession
 from tests.test_connection import StartMessage
@@ -11,11 +12,9 @@ from tests.test_connection import StartMessage
 
 def run() -> None:
     """Run the demo example."""
-    key_file = os.path.join(os.path.expanduser("~"), ".telegram_menu", "key.txt")
-    with open(key_file, "r") as key_h:
-        api_key = key_h.read().strip()
+    api_key = (Path.home() / ".telegram_menu" / "key.txt").open().read().strip()
 
-    print("Start the session and wait forever")
+    print(" >> Start the demo and wait forever, quit with CTRL+C...")
     TelegramMenuSession(api_key).start(StartMessage)
     while True:
         time.sleep(1)

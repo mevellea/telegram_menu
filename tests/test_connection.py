@@ -5,13 +5,23 @@
 import datetime
 import logging
 import os
+import re
 import time
 import unittest
-from typing import Any, List, Optional, Union
+from pathlib import Path
+from typing import IO, Any, List, Optional, Union
+
+import telegram
+from typing_extensions import TypedDict
 
 from telegram_menu import BaseMessage, ButtonType, MenuButton, NavigationHandler, TelegramMenuSession
+from telegram_menu._version import __url__
 
 KeyboardContent = List[Union[str, List[str]]]
+
+ROOT_FOLDER = Path(__file__).parent.parent
+
+UnitTestDict = TypedDict("UnitTestDict", {"description": str, "input": str, "output": str})
 
 
 class OptionsAppMessage(BaseMessage):
@@ -29,33 +39,42 @@ class OptionsAppMessage(BaseMessage):
 
     def app_update_display(self) -> None:
         """Update message content when callback triggered."""
-        self.play_pause = not self.play_pause
-        edited = self.edit_message()
-        if edited:
+        self._toggle_play_button()
+        if self.edit_message():
             self.is_alive()
 
     def kill_message(self) -> None:
         """Kill message after this callback."""
-        self.play_pause = not self.play_pause
+        self._toggle_play_button()
 
     def action_button(self) -> str:
         """Execute an action and return notification content."""
-        self.play_pause = not self.play_pause
+        self._toggle_play_button()
         return "option selected!"
 
     def text_button(self) -> str:
         """Display any text data."""
-        self.play_pause = not self.play_pause
+        self._toggle_play_button()
         data: KeyboardContent = [["text1", "value1"], ["text2", "value2"]]
         return format_list(data)
 
-    def picture_button(self) -> str:
-        """Display a picture."""
-        self.play_pause = not self.play_pause
-        return "resources/stats_default.png"
+    def picture_default(self) -> str:
+        """Display the deafult picture."""
+        self._toggle_play_button()
+        return "invalid_picture_path"
 
-    def picture_button2(self) -> None:
-        """Display an undefined picture."""
+    def picture_button(self) -> str:
+        """Display a local picture."""
+        self._toggle_play_button()
+        return (ROOT_FOLDER / "resources" / "packages.png").resolve().as_posix()
+
+    def picture_button2(self) -> str:
+        """Display a picture from a remote url."""
+        self._toggle_play_button()
+        return r"https://raw.githubusercontent.com/mevellea/telegram_menu/master/resources/classes.png"
+
+    def _toggle_play_button(self) -> None:
+        """Toogle the first button between play and pause mode."""
         self.play_pause = not self.play_pause
 
     @staticmethod
@@ -70,7 +89,7 @@ class OptionsAppMessage(BaseMessage):
         play_pause_button = ":play_button:" if self.play_pause else ":pause_button:"
         self.keyboard = [
             MenuButton(play_pause_button, callback=self.action_button),
-            MenuButton(":twisted_rightwards_arrows:", callback=self.action_button),
+            MenuButton(":twisted_rightwards_arrows:", callback=self.picture_default, btype=ButtonType.PICTURE),
             MenuButton(":chart_with_upwards_trend:", callback=self.picture_button, btype=ButtonType.PICTURE),
             MenuButton(":chart_with_downwards_trend:", callback=self.picture_button2, btype=ButtonType.PICTURE),
             MenuButton(":door:", callback=self.text_button, btype=ButtonType.MESSAGE),
@@ -159,10 +178,23 @@ class StartMessage(BaseMessage):
 class Test(unittest.TestCase):
     """The basic class that inherits unittest.TestCase."""
 
+    session: Optional["TelegramMenuSession"] = None
+    navigation: Optional["NavigationHandler"] = None
+    update_callback: List[Any] = []
+
     def setUp(self) -> None:
-        key_file = os.path.join(os.path.expanduser("~"), ".telegram_menu", "key.txt")
-        with open(key_file, "r") as key_h:
-            self.api_key = key_h.read().strip()
+        """Initialize the test session, create the telegram instance if it does not exist."""
+        init_logger()
+        self.api_key = (Path.home() / ".telegram_menu" / "key.txt").open().read().strip()
+
+        if Test.session is None:
+            Test.session = TelegramMenuSession(api_key=self.api_key)
+            Test.session.start(start_message_class=StartMessage, start_message_args=Test.update_callback)
+
+            print("\n### Waiting for a manual request to start the Telegram session...\n")
+            while not Test.navigation:
+                Test.navigation = Test.session.get_session()
+                time.sleep(1)
 
     def test_1_wrong_api_key(self) -> None:
         """Test starting a client with wrong key."""
@@ -177,17 +209,17 @@ class Test(unittest.TestCase):
 
     def test_2_label_emoji(self) -> None:
         """Check replacement of emoji."""
-        vectors = [
-            {"input": "lbl", "output": "lbl"},
-            {"input": ":lbl:", "output": ":lbl:"},
-            {"input": "", "output": ""},
-            {"input": ":play_button:", "output": "▶"},
-            {"input": ":play_button:-:play_button::", "output": "▶-▶:"},
-            {"input": ":play_button: , :pause_button:", "output": "▶ , ⏸"},
+        vectors: List[UnitTestDict] = [
+            {"description": "No emoji", "input": "lbl", "output": "lbl"},
+            {"description": "Invalid emoji", "input": ":lbl:", "output": ":lbl:"},
+            {"description": "Empty string", "input": "", "output": ""},
+            {"description": "Valid emoji", "input": ":play_button:", "output": "▶"},
+            {"description": "Consecutive emoji", "input": ":play_button:-:play_button::", "output": "▶-▶:"},
+            {"description": "Consecutive emoji 2", "input": ":play_button: , :pause_button:", "output": "▶ , ⏸"},
         ]
         for vector in vectors:
             button = MenuButton(label=vector["input"])
-            self.assertEqual(button.label, vector["output"])
+            self.assertEqual(button.label, vector["output"], vector["description"])
 
     def test_3_bad_start_message(self) -> None:
         """Test starting a client with bad start message."""
@@ -201,53 +233,72 @@ class Test(unittest.TestCase):
 
         manager.updater.stop()
 
-    def test_4_client_connection(self) -> None:
+    def test_4_picture_path(self) -> None:
+        """Test sending valid and invalid pictures."""
+        if Test.session is None:
+            self.fail("Telegram session not available")
+
+        # test sending local files, valid and invalid
+        vectors_local: List[str] = [
+            (ROOT_FOLDER / "resources" / "packages.png").resolve().as_posix(),
+            (ROOT_FOLDER / "setup.py").resolve().as_posix(),
+        ]
+        for vector in vectors_local:
+            messages = Test.session.broadcast_picture(vector)
+            self.assertIsInstance(messages, List)
+            self.assertEqual(len(messages), 1)
+            self.assertIsInstance(messages[0], telegram.Message)
+
+        # test sending remote urls, valid and invalid
+        vectors_urls: List[str] = [
+            "https://raw.githubusercontent.com/mevellea/telegram_menu/master/resources/classes.png",
+            "https://raw.githubusercontent.com/mevellea/telegram_menu/master/setup.py",
+        ]
+        for vector in vectors_urls:
+            messages = Test.session.broadcast_picture(vector)
+            self.assertIsInstance(messages, List)
+            self.assertEqual(len(messages), 1)
+            self.assertIsInstance(messages[0], telegram.Message)
+
+    def test_5_client_connection(self) -> None:
         """Run the client test."""
-        init_logger()
 
-        update_callback: List[Any] = []
-        session: Optional["NavigationHandler"] = None
+        if Test.session is None or Test.navigation is None:
+            self.fail("Telegram session not available")
+        _navigation = Test.navigation
 
-        manager = TelegramMenuSession(api_key=self.api_key)
-        manager.start(start_message_class=StartMessage, start_message_args=update_callback)
-        while not session:
-            session = manager.get_session()
-            time.sleep(1)
-
-        manager.broadcast_message("Broadcast message")
-        manager.broadcast_picture("picture_path")
-        msg_id = session.select_menu_button("Action")
+        Test.session.broadcast_message("Broadcast message")
+        msg_id = _navigation.select_menu_button("Action")
         self.assertGreater(msg_id, 1)
 
         time.sleep(0.5)
-        manager.broadcast_message("Test message")
+        Test.session.broadcast_message("Test message")
         time.sleep(0.5)
-        session.select_menu_button("Action")
+        _navigation.select_menu_button("Action")
         time.sleep(0.5)
-        session.select_menu_button("Second menu")
+        _navigation.select_menu_button("Second menu")
         time.sleep(0.5)
-        session.select_menu_button("Back")
+        _navigation.select_menu_button("Back")
         time.sleep(0.5)
-        session.select_menu_button("Second menu")
+        _navigation.select_menu_button("Second menu")
         time.sleep(0.5)
-        session.select_menu_button("Home")
+        _navigation.select_menu_button("Home")
         time.sleep(0.5)
-        session.select_menu_button("Second menu")
+        _navigation.select_menu_button("Second menu")
         time.sleep(0.5)
-        session.goto_home()
+        _navigation.goto_home()
         time.sleep(0.5)
-        session.select_menu_button("Second menu")
+        _navigation.select_menu_button("Second menu")
         time.sleep(0.5)
-        session.select_menu_button("Option")
+        _navigation.select_menu_button("Option")
         time.sleep(0.5)
 
         # run the update callback to trigger edition
-        for callback in update_callback:
+        for callback in Test.update_callback:
             callback()
 
-        time.sleep(20)
-
-        manager.updater.stop()
+        Test.session.updater.stop()
+        logging.info("Test finished")
 
 
 def init_logger() -> None:

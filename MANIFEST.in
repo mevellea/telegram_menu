@@ -1,3 +1,2 @@
 include LICENSE
-include resources/*.png
-include resources/*.jpg
+include resources/stats_default.png

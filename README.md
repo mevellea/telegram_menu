@@ -5,8 +5,8 @@ A python library to generate navigation menus using Telegram Bot API.
 Features:
 
 * Menu navigation using tree structure, unlimited depth
-* Support for sending pictures, notifications, and polls
-* Session manager when multiple users connect to the same bot
+* Support for sending pictures (local file or url), notifications, and polls
+* Session manager with multiple users connecting to the same bot
 * Automatic deletion of messages when configurable timer has expired
 * Integration of markdown formatting + emojis
 

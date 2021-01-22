@@ -50,6 +50,11 @@ call_pyreverse()
   pyreverse --output=png --filter-mode=PUB_ONLY telegram_menu
 }
 
+call_demo()
+{
+  python tests/demo.py
+}
+
 call_gendoc()
 {
   m2r README.md
@@ -89,10 +94,6 @@ call_check()
 call_release()
 {
   python setup.py sdist
-  # manual call:
-  # twine upload --repository-url https://pypi.org/legacy/ dist/*.tar.gz
-  # pip install -U --index-url https://pypi.org/simple/ telegram_menu
-
   # twine upload dist/*.tar.gz
   # pip install -U --index-url https://pypi.org/simple/ telegram_menu
 }

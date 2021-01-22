@@ -3,6 +3,16 @@
 
 """Telegram menu navigation."""
 
+import datetime
+import imghdr
+import logging
+import mimetypes
+import time
+from pathlib import Path
+from typing import Any, BinaryIO, List, Optional, Union
+
+import telegram.ext
+import validators
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.schedulers.base import BaseScheduler
 from telegram import Bot, Chat, ChatAction, Poll, ReplyKeyboardMarkup
@@ -12,15 +22,8 @@ from telegram.ext.callbackcontext import CallbackContext
 from telegram.parsemode import ParseMode
 from telegram.update import Update
 from telegram.utils.request import Request
+
 from .models import BaseMessage, ButtonType, emoji_replace
-from typing import Any, List, Optional
-import telegram.ext
-import validators
-import datetime
-import logging
-import imghdr
-import time
-import os
 
 logger = logging.getLogger(__name__)
 
@@ -129,28 +132,36 @@ class TelegramMenuSession:
         error_message = str(context.error) if update is None else f"Update {update.update_id} - {str(context.error)}"
         logger.error(error_message)
 
-    def broadcast_message(self, message: str, notification: bool = True) -> None:
+    def broadcast_message(self, message: str, notification: bool = True) -> List[telegram.Message]:
         """Broadcast simple message without keyboard markup to all sessions."""
+        messages = []
         for session in self.sessions:
-            session.send_message(message, notification=notification)
+            msg = session.send_message(message, notification=notification)
+            if msg is not None:
+                messages.append(msg)
+        return messages
 
-    def broadcast_picture(self, picture_path: str, notification: bool = True) -> None:
+    def broadcast_picture(self, picture_path: str, notification: bool = True) -> List[telegram.Message]:
         """Broadcast picture to all sessions."""
+        messages = []
         for session in self.sessions:
-            session.send_photo(picture_path, notification=notification)
+            msg = session.send_photo(picture_path, notification=notification)
+            if msg is not None:
+                messages.append(msg)
+        return messages
 
 
-class NavigationHandler:  # pylint: disable=too-many-instance-attributes
+class NavigationHandler:
     """Navigation handler for Telegram application."""
 
     POLL_DEADLINE = 10  # seconds
     MESSAGE_CHECK_TIMEOUT = 10  # seconds
     CONNECTION_POOL_SIZE = 8
 
-    PICTURE_DEFAULT = "resources/stats_default.png"
+    PICTURE_DEFAULT = r"https://raw.githubusercontent.com/mevellea/telegram_menu/master/resources/stats_default.png"
 
     def __init__(self, api_key: str, chat: Chat, scheduler: BaseScheduler) -> None:
-        """Init Navigation manager class."""
+        """Init NavigationHandler class."""
         request = Request(con_pool_size=self.CONNECTION_POOL_SIZE)
         self._bot = Bot(token=api_key, request=request)
         self._poll: Optional[Poll] = None
@@ -351,20 +362,35 @@ class NavigationHandler:  # pylint: disable=too-many-instance-attributes
         message.is_alive()
         self.edit_message(message)
 
-    def send_photo(self, picture_path: str, notification: bool = True) -> telegram.Message:
-        """Send a picture."""
+    @staticmethod
+    def _picture_check_replace(picture_path: str) -> Union[str, BinaryIO]:
+        """Check if the given picture path or uri is correct, replace by default if not."""
         try:
             if validators.url(picture_path):
-                pass
-            elif os.path.isfile(picture_path) and imghdr.what(picture_path):
-                picture_path = open(picture_path, "rb")
-            else:
-                raise ValueError("Argument is not a picture")
-        except Exception:
-            dir_path = os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir))
-            picture_path = open(os.path.join(dir_path, self.PICTURE_DEFAULT), "rb")
-            logger.error("Replacing with default %s", self.PICTURE_DEFAULT)
-        return self._bot.send_photo(chat_id=self.chat_id, photo=picture_path, disable_notification=not notification)
+                # check if the url has image format
+                mimetype, _ = mimetypes.guess_type(picture_path)
+                if mimetype and mimetype.startswith("image"):
+                    return picture_path
+                raise ValueError("Url is not a picture")
+            if Path(picture_path).is_file() and imghdr.what(picture_path):
+                return open(picture_path, "rb")
+            raise ValueError("Path is not a picture")
+        except ValueError:
+            logger.error(
+                "Picture path '%s' is invalid, replacing with default %s",
+                picture_path,
+                NavigationHandler.PICTURE_DEFAULT,
+            )
+            return NavigationHandler.PICTURE_DEFAULT
+
+    def send_photo(self, picture_path: str, notification: bool = True) -> Optional[telegram.Message]:
+        """Send a picture."""
+        picture_obj = self._picture_check_replace(picture_path)
+        try:
+            return self._bot.send_photo(chat_id=self.chat_id, photo=picture_obj, disable_notification=not notification)
+        except telegram.error.BadRequest as error:
+            logger.error("Failed to send picture '%s': %s", picture_obj, error)
+        return None
 
     def get_message(self, label_message: str) -> Optional[BaseMessage]:
         """Get message from message_queue matching attribute label_message."""

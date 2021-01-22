@@ -7,9 +7,6 @@ telegram_menu package
 
 A python library to generate navigation menus using Telegram Bot API.
 
-Base classes ``MenuMessage`` and ``AppMessage`` help defining\ :raw-html-m2r:`<br>`
-applications buttons to navigate in a message tree. 
-
 Features:
 
 
@@ -17,9 +14,9 @@ Features:
 * Support for sending pictures, notifications, and polls
 * Session manager when multiple users connect to the same bot
 * Automatic deletion of messages when configurable timer has expired
-* Integration of markdown format + emojis
+* Integration of markdown formatting + emojis
 
-Here is an example of navigation with menus and inline menus:
+Here is an example of navigation with menus and inlined buttons:
 
 
 .. image:: https://raw.githubusercontent.com/mevellea/telegram_menu/master/resources/demo.gif
@@ -37,13 +34,13 @@ Installation
 Getting Started
 ---------------
 
-You first need to `create a Telegram bot <https://github.com/python-telegram-bot/python-telegram-bot/wiki/Introduction-to-the-API>`_\ , then you can refer to sample code in ``tests\test_connection.py`` to run a complete use-case.
+You first need to `create a Telegram bot <https://github.com/python-telegram-bot/python-telegram-bot/wiki/Introduction-to-the-API>`_\ , then you can refer to the sample code in ``tests\test_connection.py`` to run a complete use-case.
 
 Following code block creates a ``Hello, World!`` message:
 
 .. code-block:: python
 
-   from telegram_menu import BaseMessage, TelegramMenuSession
+   from telegram_menu import BaseMessage, TelegramMenuSession, NavigationHandler
 
    API_KEY = "put_your_telegram_bot_api_key_here"
 
@@ -62,28 +59,59 @@ Following code block creates a ``Hello, World!`` message:
 
    TelegramMenuSession(API_KEY).start(StartMessage)
 
-You can add any button in ``StartMessage``\ , using ``self.add_button()`` method:
+You can add new buttons in ``StartMessage``\ , using ``self.add_button()`` method. 
+The callback of a button can be used to update the content of the current message, or to open a new menu.
+For example, adding these lines in the constructor of the previous class will open a second menu:
 
 .. code-block:: python
 
-   # 'run_and_notify' function executes an action and return a string as Telegram notification.
-   self.add_button(label="Action", callback=self.run_and_notify)
+   second_menu = SecondMenuMessage(navigation)
+   self.add_button(label="Second menu", callback=second_menu)
 
-   # 'new_menu_app' is a class derived from MenuMessage or AppMessage, which will generate a new menu or a message.
-   self.add_button(label="NewMenu", callback=new_menu_app)
-
-An application message can contain several inlined buttons. The behavior is similar to MenuMessage buttons.
+Then define the second message:
 
 .. code-block:: python
 
-   # 'get_content' function generates some text to display, eventually with markdown formatting
+   class SecondMenuMessage(BaseMessage):
+       """Second menu, create an inlined button."""
+
+       LABEL = "action"
+
+       def __init__(self, navigation: NavigationHandler) -> None:
+           """Init SecondMenuMessage class."""
+           super().__init__(navigation, StartMessage.LABEL, inlined=True)
+
+           # 'run_and_notify' function executes an action and return a string as Telegram notification.
+           self.add_button(label="Action", callback=self.run_and_notify)
+
+       def update(self) -> str:
+           """Update message content."""
+           # emoji can be inserted with a keyword enclosed with ::
+           # list of emojis can be found at this link: https://www.webfx.com/tools/emoji-cheat-sheet/
+           return ":warnings: Second message"
+
+       @staticmethod
+       def run_and_notify() -> str:
+           """Update message content."""
+           return "This is a notification"
+
+An application message can contain several inlined buttons, the behavior is similar to MenuMessage buttons.
+To define a message as inlined, the property ``inlined`` must be set to ``True``.
+
+A message can also be used to create a poll or show a picture, using property ``btype``.
+
+.. code-block:: python
+
+   from telegram_menu import MenuButton
+
+   # 'get_content' function must return the text content to display, eventually with markdown formatting
    self.add_button(label="Display content", callback=self.get_content, btype=ButtonType.MESSAGE)
 
-   # 'get_picture' function returns the path of a picture to display in Telegram
+   # 'get_picture' function must return the path of a picture to display in Telegram
    self.add_button(label="Show picture", callback=self.get_picture, btype=ButtonType.PICTURE)
 
-   # new buttons can be added to the 'keyboard' property of the message instance too.
-   # next poll message will get items to display from function 'get_playlists_arg', and run 'select_playlist' when 
+   # New buttons can be added to the 'keyboard' property of the message instance too.
+   # Next poll message will get items to display from function 'get_playlists_arg', and run 'select_playlist' when 
    # the poll button is selected, identified with emoji 'closed_book'
    poll_button = MenuButton(
        label=emojize("closed_book"), callback=self.select_playlist, btype=ButtonType.POLL, args=self.get_playlists_arg()
@@ -96,8 +124,8 @@ Structure
 Classes in package ``telegram_menu`` are stored in 2 python files:
 
 
-* `navigation.py <telegram_menu/navigation.py>`_\ : main interface, menu and message generation and management
-* `models.py <telegram_menu/models.py>`_\ : menu and message models, classes definition
+* `navigation.py <https://github.com/mevellea/telegram_menu/blob/master/telegram_menu/navigation.py>`_ - Main interface, menu and message generation and management
+* `models.py <https://github.com/mevellea/telegram_menu/blob/master/telegram_menu/models.py>`_ - Menu and message models, classes definition
 
 :raw-html-m2r:`<img src="https://raw.githubusercontent.com/mevellea/telegram_menu/master/resources/packages.png" width="400"/>`
 

@@ -9,7 +9,7 @@ import re
 import time
 import unittest
 from pathlib import Path
-from typing import IO, Any, List, Optional, Union
+from typing import IO, Any, Dict, List, Optional, TypedDict, Union
 
 import telegram
 from typing_extensions import TypedDict
@@ -18,6 +18,7 @@ from telegram_menu import BaseMessage, ButtonType, MenuButton, NavigationHandler
 from telegram_menu._version import __url__
 
 KeyboardContent = List[Union[str, List[str]]]
+KeyboardTester = TypedDict("KeyboardTester", {"buttons": int, "output": List[int]})
 
 ROOT_FOLDER = Path(__file__).parent.parent
 
@@ -88,19 +89,16 @@ class OptionsAppMessage(BaseMessage):
         poll_choices = [":play_button: Option " + str(x) for x in range(6)]
         play_pause_button = ":play_button:" if self.play_pause else ":pause_button:"
         self.keyboard = [
-            MenuButton(play_pause_button, callback=self.action_button),
-            MenuButton(":twisted_rightwards_arrows:", callback=self.picture_default, btype=ButtonType.PICTURE),
-            MenuButton(":chart_with_upwards_trend:", callback=self.picture_button, btype=ButtonType.PICTURE),
-            MenuButton(":chart_with_downwards_trend:", callback=self.picture_button2, btype=ButtonType.PICTURE),
-            MenuButton(":door:", callback=self.text_button, btype=ButtonType.MESSAGE),
-            MenuButton(":speaker_medium_volume:", callback=self.action_button),
-            MenuButton(
-                ":question:",
-                callback=self.action_poll,
-                btype=ButtonType.POLL,
-                args=[poll_question, poll_choices],
-            ),
+            [
+                MenuButton(play_pause_button, callback=self.action_button),
+                MenuButton(":twisted_rightwards_arrows:", callback=self.picture_default, btype=ButtonType.PICTURE),
+                MenuButton(":chart_with_upwards_trend:", callback=self.picture_button, btype=ButtonType.PICTURE),
+                MenuButton(":chart_with_downwards_trend:", callback=self.picture_button2, btype=ButtonType.PICTURE),
+            ]
         ]
+        self.add_button(":door:", callback=self.text_button, btype=ButtonType.MESSAGE)
+        self.add_button(":speaker_medium_volume:", callback=self.action_button)
+        self.add_button(":question:", self.action_poll, btype=ButtonType.POLL, args=[poll_question, poll_choices])
         return "Status updated!"
 
 
@@ -138,9 +136,9 @@ class SecondMenuMessage(BaseMessage):
         action_message = ActionAppMessage(self._navigation)
         option_message = OptionsAppMessage(self._navigation, update_callback)
         self.add_button(label="Option", callback=option_message)
-        self.add_button(label="Action", callback=action_message)
-        self.add_button(label="Back")
-        self.add_button(label="Home")
+        self.add_button("Action", action_message)
+        self.add_button_back()
+        self.add_button_home()
         if update_callback:
             update_callback.append(self.app_update_display)
 
@@ -170,6 +168,11 @@ class StartMessage(BaseMessage):
         self.add_button(label="Action", callback=action_message)
         self.add_button(label="Second menu", callback=second_menu)
 
+    @staticmethod
+    def run_and_notify() -> str:
+        """Update message content."""
+        return "This is a notification"
+
     def update(self) -> str:
         """Update message content."""
         return "Start message!"
@@ -185,7 +188,8 @@ class Test(unittest.TestCase):
     def setUp(self) -> None:
         """Initialize the test session, create the telegram instance if it does not exist."""
         init_logger()
-        self.api_key = (Path.home() / ".telegram_menu" / "key.txt").open().read().strip()
+        with (Path.home() / ".telegram_menu" / "key.txt").open() as key_h:
+            self.api_key = key_h.read().strip()
 
         if Test.session is None:
             Test.session = TelegramMenuSession(api_key=self.api_key)
@@ -260,9 +264,48 @@ class Test(unittest.TestCase):
             self.assertEqual(len(messages), 1)
             self.assertIsInstance(messages[0], telegram.Message)
 
-    def test_5_client_connection(self) -> None:
+    def test_5_keyboard_combinations(self) -> None:
         """Run the client test."""
+        if Test.session is None or Test.navigation is None:
+            self.fail("Telegram session not available")
+        vectors_inlined: List[KeyboardTester] = [
+            {"buttons": 2, "output": [2]},
+            {"buttons": 4, "output": [2, 2]},
+            {"buttons": 7, "output": [2, 2, 2, 1]},
+        ]
+        for vector in vectors_inlined:
+            msg_test = StartMessage(Test.navigation)
+            msg_test.keyboard = []
+            for x in range(vector["buttons"]):
+                msg_test.add_button(label=str(x), callback=StartMessage.run_and_notify)
+            self.assertEqual(
+                [len(x) for x in msg_test.gen_keyboard_content().keyboard],
+                vector["output"],
+                str(vector["buttons"]),
+            )
 
+    def test_5_keyboard_combinations_inlined(self) -> None:
+        """Run the client test."""
+        if Test.session is None or Test.navigation is None:
+            self.fail("Telegram session not available")
+        vectors_inlined: List[KeyboardTester] = [
+            {"buttons": 2, "output": [2]},
+            {"buttons": 4, "output": [4]},
+            {"buttons": 6, "output": [4, 2]},
+        ]
+        for vector in vectors_inlined:
+            msg_test = ActionAppMessage(Test.navigation)
+            msg_test.keyboard = []
+            for x in range(vector["buttons"]):
+                msg_test.add_button(label=str(x), callback=StartMessage.run_and_notify)
+            self.assertEqual(
+                [len(x) for x in msg_test.gen_keyboard_content().inline_keyboard],
+                vector["output"],
+                str(vector["buttons"]),
+            )
+
+    def test_6_client_connection(self) -> None:
+        """Run the client test."""
         if Test.session is None or Test.navigation is None:
             self.fail("Telegram session not available")
         _navigation = Test.navigation

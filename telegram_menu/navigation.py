@@ -23,7 +23,7 @@ from telegram.parsemode import ParseMode
 from telegram.update import Update
 from telegram.utils.request import Request
 
-from .models import BaseMessage, ButtonType, emoji_replace
+from .models import BaseMessage, ButtonType, TypeCallback, emoji_replace
 
 logger = logging.getLogger(__name__)
 
@@ -165,7 +165,7 @@ class NavigationHandler:
         request = Request(con_pool_size=self.CONNECTION_POOL_SIZE)
         self._bot = Bot(token=api_key, request=request)
         self._poll: Optional[Poll] = None
-        self._poll_calback = None
+        self._poll_calback: Optional[TypeCallback] = None
 
         self.scheduler = scheduler
         self.chat_id = chat.id
@@ -286,7 +286,9 @@ class NavigationHandler:
     def _message_check_changes(message: BaseMessage, content: str) -> bool:
         """Check is message content and keyboard has changed since last edit."""
         content_identical = content == message.content_previous
-        keyboard_identical = [x.label for x in message.keyboard_previous] == [x.label for x in message.keyboard]
+        keyboard_identical = [y.label for x in message.keyboard_previous for y in x] == [
+            y.label for x in message.keyboard for y in x
+        ]
         if content_identical and keyboard_identical:
             return False
         message.content_previous = content
@@ -339,6 +341,9 @@ class NavigationHandler:
             self.send_poll(question=button_found.args[0], options=button_found.args[1])
             self._poll_calback = button_found.callback
             self._bot.answer_callback_query(callback_id, text="Select an answer...")
+            return
+
+        if not callable(button_found.callback):
             return
 
         if button_found.args is not None:
@@ -427,7 +432,7 @@ class NavigationHandler:
 
     def poll_answer(self, answer_id: int) -> None:
         """Run when poll message is received."""
-        if self._poll is None or self._poll_calback is None:
+        if self._poll is None or self._poll_calback is None or not callable(self._poll_calback):
             logger.error("Poll is not defined")
             return
 

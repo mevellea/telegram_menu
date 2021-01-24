@@ -70,12 +70,16 @@ class SecondMenuMessage(BaseMessage):
 
         # 'run_and_notify' function executes an action and return a string as Telegram notification.
         self.add_button(label="Action", callback=self.run_and_notify)
+        # 'back' button goes back to previous menu
+        self.add_button_back()
+        # 'home' button goes back to main menu
+        self.add_button_home()
 
     def update(self) -> str:
         """Update message content."""
         # emoji can be inserted with a keyword enclosed with ::
         # list of emojis can be found at this link: https://www.webfx.com/tools/emoji-cheat-sheet/
-        return ":warnings: Second message"
+        return ":warning: Second message"
 
     @staticmethod
     def run_and_notify() -> str:
@@ -88,6 +92,9 @@ To define a message as inlined, the property ``inlined`` must be set to ``True``
 
 A message can also be used to create a poll or show a picture, using property ``btype``.
 
+The default number of buttons per row is 2 for base keyboards, 4 for inlined keyboards, 
+to create a new row the property ``new_row`` can be set to ``True`` when calling ``add_button()``.
+
 ```python
 from telegram_menu import MenuButton
 
@@ -95,15 +102,15 @@ from telegram_menu import MenuButton
 self.add_button(label="Display content", callback=self.get_content, btype=ButtonType.MESSAGE)
 
 # 'get_picture' function must return the path of a picture to display in Telegram
-self.add_button(label="Show picture", callback=self.get_picture, btype=ButtonType.PICTURE)
+self.add_button(label="Show picture", callback=self.get_picture, btype=ButtonType.PICTURE, new_row=True)
 
 # New buttons can be added to the 'keyboard' property of the message instance too.
 # Next poll message will get items to display from function 'get_playlists_arg', and run 'select_playlist' when 
 # the poll button is selected, identified with emoji 'closed_book'
 poll_button = MenuButton(
-    label=emojize("closed_book"), callback=self.select_playlist, btype=ButtonType.POLL, args=self.get_playlists_arg()
+    label=":closed_book:", callback=self.select_playlist, btype=ButtonType.POLL, args=self.get_playlists_arg()
 )
-self.keyboard.append(poll_button)
+self.keyboard.append([poll_button])
 ```
 
 ## Structure

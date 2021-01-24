@@ -10,7 +10,7 @@ import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import TYPE_CHECKING, Any, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, List, Optional, Union
 
 import emoji
 import telegram
@@ -22,7 +22,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-KeyboardContent = List[Union[str, List[str]]]
+TypeCallback = Optional[Union[Callable[..., Any], "BaseMessage"]]
+TypeKeyboard = List[List["MenuButton"]]
 
 
 class ButtonType(Enum):
@@ -44,13 +45,12 @@ class MenuButton:  # pylint: disable=too-few-public-methods
         btype: button type
         args: argument passed to the callback
         notification: send notification to user
-
     """
 
     def __init__(
         self,
         label: str,
-        callback: Any = None,
+        callback: TypeCallback = None,
         btype: ButtonType = ButtonType.NOTIFICATION,
         args: Any = None,
         notification: bool = True,
@@ -73,7 +73,6 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
         inlined: create an inlined message instead of a menu message
         home_after: go back to home menu after executing the action
         notification: show a notification in Telegram interface
-
     """
 
     EXPIRING_DELAY = 12  # minutes
@@ -90,16 +89,18 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
         notification: bool = True,
     ) -> None:
         """Init BaseMessage class."""
-        self.keyboard: List[MenuButton] = []
+        self.keyboard: TypeKeyboard = [[]]
         self.label = emoji_replace(label)
         self.inlined = inlined
         self.notification = notification
         self._navigation = navigation
 
         # previous values are used to check if it has changed, to skip sending identical message
-        self.keyboard_previous: List[MenuButton] = []
+        self.keyboard_previous: TypeKeyboard = [[]]
         self.content_previous: str = ""
 
+        # if 'home_after' is True, the navigation manager goes back to
+        # the main menu after this message has been sent
         self.home_after = home_after
         self.message_id = -1
         self._expiry_period = (
@@ -116,7 +117,6 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
 
         Returns:
             Message content formatted with HTML formatting.
-
         """
         raise NotImplementedError
 
@@ -125,32 +125,57 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
 
         Args:
             label: message label
-
         Returns:
             button matching label
-
         Raises:
             EnvironmentError: too many buttons matching label
-
         """
-        return next(iter(x for x in self.keyboard if x.label == label), None)
+        return next(iter(y for x in self.keyboard for y in x if y.label == label), None)
 
-    def add_button(self, label: str, callback: Any = None) -> None:
+    def add_button_back(self) -> None:
+        """Add a button to go back to previous menu."""
+        self.add_button("Back", None)
+
+    def add_button_home(self) -> None:
+        """Add a button to go back to main menu."""
+        self.add_button("Home", None)
+
+    def add_button(
+        self,
+        label: str,
+        callback: TypeCallback = None,
+        btype: ButtonType = ButtonType.NOTIFICATION,
+        args: Any = None,
+        notification: bool = True,
+        new_row: bool = False,
+    ) -> None:
         """Add a button to keyboard attribute.
 
         Args:
             label: button label
             callback: method called on button selection
-
+            btype: button type
+            args: argument passed to the callback
+            notification: send notification to user
+            new_row: add a new row
         """
-        self.keyboard.append(MenuButton(label, callback))
+        # arrange buttons per row, depending on inlined property
+        buttons_per_row = 2 if not self.inlined else 4
+
+        if not isinstance(self.keyboard, list) or not self.keyboard:
+            self.keyboard = [[]]
+
+        # add new row if last row is full or append to last row
+        if new_row or len(self.keyboard[-1]) == buttons_per_row:
+            self.keyboard.append([MenuButton(label, callback, btype, args, notification)])
+        else:
+            self.keyboard[-1].append(MenuButton(label, callback, btype, args, notification))
 
     def edit_message(self) -> bool:
         """Request navigation controller to update current message.
 
         Returns:
             True if message was edited
-
         """
         return self._navigation.edit_message(self)
 
@@ -162,46 +187,19 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
 
         Returns:
             Generated keyboard
-
         """
         if inlined is None:
             inlined = self.inlined
         keyboard_buttons = []
         button_object = telegram.InlineKeyboardButton if inlined else KeyboardButton
-        if inlined:
-            buttons_per_line = 4 if len(self.keyboard) > 5 else 5
-        else:
-            buttons_per_line = 2
-        for button in self._get_array_from_list(self.keyboard, buttons_per_line):
+
+        for row in self.keyboard:
             keyboard_buttons.append(
-                [button_object(text=x.label, callback_data="%s.%s" % (self.label, x.label)) for x in button]
+                [button_object(text=x.label, callback_data="%s.%s" % (self.label, x.label)) for x in row]
             )
         if inlined:
             return InlineKeyboardMarkup(inline_keyboard=keyboard_buttons, resize_keyboard=False)
         return ReplyKeyboardMarkup(keyboard=keyboard_buttons, resize_keyboard=True)
-
-    @staticmethod
-    def _get_array_from_list(buttons: List[MenuButton], cells_per_line: int) -> List[List[MenuButton]]:
-        """Convert ar array of MenuButton to a grid.
-
-        Args:
-            buttons: list of MenuButton
-            cells_per_line: number of cells per line
-
-        Returns:
-            List of list of MenuButton
-
-        """
-        array = []
-        array_row = []
-        for item in buttons:
-            array_row.append(item)
-            if len(array_row) % cells_per_line == 0:
-                array.append(array_row)
-                array_row = []
-        if array_row:
-            array.append(array_row)
-        return array
 
     def is_alive(self) -> None:
         """Update message timestamp."""
@@ -212,7 +210,6 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
 
         Returns:
             True if timer has expired
-
         """
         if self.time_alive is not None:
             return self.time_alive + self._expiry_period < datetime.datetime.now()

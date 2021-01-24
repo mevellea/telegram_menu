@@ -12,7 +12,8 @@ from tests.test_connection import StartMessage
 
 def run() -> None:
     """Run the demo example."""
-    api_key = (Path.home() / ".telegram_menu" / "key.txt").open().read().strip()
+    with (Path.home() / ".telegram_menu" / "key.txt").open() as key_h:
+        api_key = key_h.read().strip()
 
     print(" >> Start the demo and wait forever, quit with CTRL+C...")
     TelegramMenuSession(api_key).start(StartMessage)

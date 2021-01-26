@@ -36,7 +36,7 @@ class ButtonType(Enum):
 
 
 @dataclass
-class MenuButton:  # pylint: disable=too-few-public-methods
+class MenuButton:
     """Base button class, wrapper for label with callback.
 
     Args:
@@ -103,7 +103,7 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
         # the main menu after this message has been sent
         self.home_after = home_after
         self.message_id = -1
-        self._expiry_period = (
+        self.expiry_period = (
             expiry_period
             if isinstance(expiry_period, datetime.timedelta)
             else datetime.timedelta(minutes=self.EXPIRING_DELAY)
@@ -119,6 +119,15 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
             Message content formatted with HTML formatting.
         """
         raise NotImplementedError
+
+    def text_input(self, text: str) -> None:
+        """Receive text from console.
+
+        If used, this function must be instantiated in the child class.
+
+        Args:
+            text: text received
+        """
 
     def get_button(self, label: str) -> Optional[MenuButton]:
         """Get button matching given label.
@@ -212,7 +221,7 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
             True if timer has expired
         """
         if self.time_alive is not None:
-            return self.time_alive + self._expiry_period < datetime.datetime.now()
+            return self.time_alive + self.expiry_period < datetime.datetime.now()
         return False
 
     def kill_message(self) -> None:

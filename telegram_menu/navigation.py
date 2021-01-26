@@ -304,7 +304,8 @@ class NavigationHandler:
             return self.goto_menu(menu_previous)
         if label == "Home":
             return self.goto_home()
-        for menu_item in self._menu_queue:
+        msg_id = 0
+        for menu_item in self._menu_queue[::-1]:
             button_found = menu_item.get_button(label)
             if button_found:
                 message_callback = button_found.callback
@@ -315,8 +316,16 @@ class NavigationHandler:
                             msg_id = self.goto_home()
                     else:
                         msg_id = self.goto_menu(message_callback)
-                    return msg_id
-        return 0
+                    break
+        else:
+            # label does not match any sub-menu, process the input in last message updated
+            last_menu_message = self._menu_queue[-1]
+            if self._message_queue:
+                last_app_message = self._message_queue[-1]
+                if last_app_message.time_alive > last_menu_message.time_alive:
+                    last_menu_message = last_app_message
+            last_menu_message.text_input(label)
+        return msg_id
 
     def app_message_button_callback(self, callback_label: str, callback_id: str) -> None:
         """Entry point to execute an action after message button selection."""

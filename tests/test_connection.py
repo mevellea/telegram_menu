@@ -9,7 +9,7 @@ import re
 import time
 import unittest
 from pathlib import Path
-from typing import IO, Any, Dict, List, Optional, TypedDict, Union
+from typing import IO, Any, Dict, List, Optional, Union
 
 import telegram
 from typing_extensions import TypedDict
@@ -23,6 +23,7 @@ KeyboardTester = TypedDict("KeyboardTester", {"buttons": int, "output": List[int
 ROOT_FOLDER = Path(__file__).parent.parent
 
 UnitTestDict = TypedDict("UnitTestDict", {"description": str, "input": str, "output": str})
+TypePackageLogger = TypedDict("TypePackageLogger", {"package": str, "level": int})
 
 
 class OptionsAppMessage(BaseMessage):
@@ -116,10 +117,12 @@ class ActionAppMessage(BaseMessage):
             inlined=True,
             home_after=True,
         )
+        self.shared_content: str = ""
 
     def update(self) -> str:
         """Update message content."""
-        return "<code>Action!</code>"
+        content = f"[{self.shared_content}]" if self.shared_content else ""
+        return f"<code>Action! {content}</code>"
 
 
 class SecondMenuMessage(BaseMessage):
@@ -133,10 +136,10 @@ class SecondMenuMessage(BaseMessage):
             navigation, SecondMenuMessage.LABEL, notification=False, expiry_period=datetime.timedelta(seconds=5)
         )
 
-        action_message = ActionAppMessage(self._navigation)
+        self.action_message = ActionAppMessage(self._navigation)
         option_message = OptionsAppMessage(self._navigation, update_callback)
         self.add_button(label="Option", callback=option_message)
-        self.add_button("Action", action_message)
+        self.add_button("Action", self.action_message)
         self.add_button_back()
         self.add_button_home()
         if update_callback:
@@ -151,6 +154,11 @@ class SecondMenuMessage(BaseMessage):
     def update(self) -> str:
         """Update message content."""
         return "Second message"
+
+    def text_input(self, text: str) -> None:
+        """Process text received."""
+        self.action_message.shared_content = text
+        self._navigation.select_menu_button("Action")
 
 
 class StartMessage(BaseMessage):
@@ -187,11 +195,11 @@ class Test(unittest.TestCase):
 
     def setUp(self) -> None:
         """Initialize the test session, create the telegram instance if it does not exist."""
-        init_logger()
         with (Path.home() / ".telegram_menu" / "key.txt").open() as key_h:
             self.api_key = key_h.read().strip()
 
         if Test.session is None:
+            init_logger()
             Test.session = TelegramMenuSession(api_key=self.api_key)
             Test.session.start(start_message_class=StartMessage, start_message_args=Test.update_callback)
 
@@ -346,18 +354,20 @@ class Test(unittest.TestCase):
 
 def init_logger() -> None:
     """Initialize logger properties."""
+    _packages: List[TypePackageLogger] = [
+        {"package": "apscheduler", "level": logging.WARNING},
+        {"package": "telegram_menu", "level": logging.DEBUG},
+    ]
     log_formatter = logging.Formatter(
         fmt="%(asctime)s [%(name)s] [%(levelname)s]  %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
     )
-    root_logger = logging.getLogger()
-
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(log_formatter)
-    root_logger.addHandler(console_handler)
-
-    # start scheduler
-    logging.getLogger("apscheduler.scheduler").setLevel(logging.ERROR)
-    logging.getLogger("apscheduler.executors").setLevel(logging.ERROR)
+    for _package in _packages:
+        _logger = logging.getLogger(_package["package"])
+        _logger.setLevel(_package["level"])
+        _logger.addHandler(console_handler)
+        _logger.propagate = False
 
 
 def format_list(args_array: KeyboardContent) -> str:

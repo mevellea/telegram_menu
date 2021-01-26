@@ -7,8 +7,9 @@ Features:
 * Menu navigation using tree structure, unlimited depth
 * Support for sending pictures (local file or url), notifications, and polls
 * Session manager with multiple users connecting to the same bot
+* Messages can read text input from the keyboard
 * Automatic deletion of messages when configurable timer has expired
-* Integration of markdown formatting + emojis
+* Integration of HTML formatting + emojis
 
 Here is an example of navigation with menus and inlined buttons:
 
@@ -43,6 +44,10 @@ class StartMessage(BaseMessage):
     def update(self) -> str:
         """Update message content."""
         return "Hello, world!"
+
+    def text_input(self, text: str) -> None:
+        """Optional, process text inputs from the keyboard."""
+        logging.info(f"Text received: '{text}'")
 
 TelegramMenuSession(API_KEY).start(StartMessage)
 ```

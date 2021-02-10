@@ -23,6 +23,7 @@ from telegram.parsemode import ParseMode
 from telegram.update import Update
 from telegram.utils.request import Request
 
+from ._version import __raw_url__
 from .models import BaseMessage, ButtonType, TypeCallback, emoji_replace
 
 logger = logging.getLogger(__name__)
@@ -157,8 +158,6 @@ class NavigationHandler:
     POLL_DEADLINE = 10  # seconds
     MESSAGE_CHECK_TIMEOUT = 10  # seconds
     CONNECTION_POOL_SIZE = 8
-
-    PICTURE_DEFAULT = r"https://raw.githubusercontent.com/mevellea/telegram_menu/master/resources/stats_default.png"
 
     def __init__(self, api_key: str, chat: Chat, scheduler: BaseScheduler) -> None:
         """Init NavigationHandler class."""
@@ -316,15 +315,18 @@ class NavigationHandler:
                             msg_id = self.goto_home()
                     else:
                         msg_id = self.goto_menu(message_callback)
-                    break
-        else:
-            # label does not match any sub-menu, process the input in last message updated
-            last_menu_message = self._menu_queue[-1]
-            if self._message_queue:
-                last_app_message = self._message_queue[-1]
-                if last_app_message.time_alive > last_menu_message.time_alive:
-                    last_menu_message = last_app_message
-            last_menu_message.text_input(label)
+                elif message_callback is not None and hasattr(message_callback, "__call__"):
+                    # execute the method
+                    message_callback()
+                return msg_id
+
+        # label does not match any sub-menu, process the input in last message updated
+        last_menu_message = self._menu_queue[-1]
+        if self._message_queue:
+            last_app_message = self._message_queue[-1]
+            if last_app_message.time_alive > last_menu_message.time_alive:
+                last_menu_message = last_app_message
+        last_menu_message.text_input(label)
         return msg_id
 
     def app_message_button_callback(self, callback_label: str, callback_id: str) -> None:
@@ -390,12 +392,13 @@ class NavigationHandler:
                 return open(picture_path, "rb")
             raise ValueError("Path is not a picture")
         except ValueError:
+            url_default = f"{__raw_url__}/resources/stats_default.png"
             logger.error(
                 "Picture path '%s' is invalid, replacing with default %s",
                 picture_path,
-                NavigationHandler.PICTURE_DEFAULT,
+                url_default,
             )
-            return NavigationHandler.PICTURE_DEFAULT
+            return url_default
 
     def send_photo(self, picture_path: str, notification: bool = True) -> Optional[telegram.Message]:
         """Send a picture."""

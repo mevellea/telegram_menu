@@ -15,7 +15,7 @@ import telegram
 from typing_extensions import TypedDict
 
 from telegram_menu import BaseMessage, ButtonType, MenuButton, NavigationHandler, TelegramMenuSession
-from telegram_menu._version import __url__
+from telegram_menu._version import __raw_url__, __url__
 
 KeyboardContent = List[Union[str, List[str]]]
 KeyboardTester = TypedDict("KeyboardTester", {"buttons": int, "output": List[int]})
@@ -73,7 +73,7 @@ class OptionsAppMessage(BaseMessage):
     def picture_button2(self) -> str:
         """Display a picture from a remote url."""
         self._toggle_play_button()
-        return r"https://raw.githubusercontent.com/mevellea/telegram_menu/master/resources/classes.png"
+        return f"{__raw_url__}/resources/classes.png"
 
     def _toggle_play_button(self) -> None:
         """Toogle the first button between play and pause mode."""
@@ -263,8 +263,8 @@ class Test(unittest.TestCase):
 
         # test sending remote urls, valid and invalid
         vectors_urls: List[str] = [
-            "https://raw.githubusercontent.com/mevellea/telegram_menu/master/resources/classes.png",
-            "https://raw.githubusercontent.com/mevellea/telegram_menu/master/setup.py",
+            f"{__raw_url__}/resources/classes.png",
+            f"{__raw_url__}/setup.py",
         ]
         for vector in vectors_urls:
             messages = Test.session.broadcast_picture(vector)

@@ -286,11 +286,10 @@ class Test(unittest.TestCase):
             msg_test.keyboard = []
             for x in range(vector["buttons"]):
                 msg_test.add_button(label=str(x), callback=StartMessage.run_and_notify)
-            self.assertEqual(
-                [len(x) for x in msg_test.gen_keyboard_content().keyboard],
-                vector["output"],
-                str(vector["buttons"]),
-            )
+            content = msg_test.gen_keyboard_content()
+            self.assertTrue(isinstance(content, telegram.ReplyKeyboardMarkup))
+            if isinstance(content, telegram.ReplyKeyboardMarkup):
+                self.assertEqual([len(x) for x in content.keyboard], vector["output"], str(vector["buttons"]))
 
     def test_5_keyboard_combinations_inlined(self) -> None:
         """Run the client test."""
@@ -306,11 +305,10 @@ class Test(unittest.TestCase):
             msg_test.keyboard = []
             for x in range(vector["buttons"]):
                 msg_test.add_button(label=str(x), callback=StartMessage.run_and_notify)
-            self.assertEqual(
-                [len(x) for x in msg_test.gen_keyboard_content().inline_keyboard],
-                vector["output"],
-                str(vector["buttons"]),
-            )
+            content = msg_test.gen_keyboard_content()
+            self.assertTrue(isinstance(content, telegram.InlineKeyboardMarkup))
+            if isinstance(content, telegram.InlineKeyboardMarkup):
+                self.assertEqual([len(x) for x in content.inline_keyboard], vector["output"], str(vector["buttons"]))
 
     def test_6_client_connection(self) -> None:
         """Run the client test."""

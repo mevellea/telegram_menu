@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# type: ignore
 
 """Sphinx documentation generation."""
 
@@ -9,7 +10,6 @@ import typing
 
 sys.path.insert(0, os.path.abspath(".."))
 
-print(sys.path)
 exec(open("../telegram_menu/_version.py").read())
 
 

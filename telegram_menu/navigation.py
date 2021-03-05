@@ -15,9 +15,9 @@ import telegram.ext
 import validators
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.schedulers.base import BaseScheduler
-from telegram import Bot, Chat, ChatAction, Poll, ReplyKeyboardMarkup
+from telegram import Bot, Chat, ChatAction, InlineKeyboardMarkup, Message, ReplyKeyboardMarkup
 from telegram.error import Unauthorized
-from telegram.ext import CallbackQueryHandler, CommandHandler, MessageHandler
+from telegram.ext import CallbackQueryHandler, CommandHandler, Dispatcher, MessageHandler
 from telegram.ext.callbackcontext import CallbackContext
 from telegram.parsemode import ParseMode
 from telegram.update import Update
@@ -55,7 +55,8 @@ class TelegramMenuSession:
             use_context=True,
             request_kwargs={"read_timeout": self.READ_TIMEOUT, "connect_timeout": self.CONNECT_TIMEOUT},
         )
-        bot = self.updater.bot
+        bot: Bot = self.updater.bot  # type: ignore
+        dispatcher: Dispatcher = self.updater.dispatcher  # type: ignore
         try:
             logger.info("Connected with Telegram bot %s (%s)", bot.name, bot.first_name)
         except Unauthorized as error:
@@ -66,11 +67,11 @@ class TelegramMenuSession:
         self.start_message_args = None
 
         # on different commands - answer in Telegram
-        self.updater.dispatcher.add_handler(CommandHandler("start", self._send_start_message))
-        self.updater.dispatcher.add_handler(MessageHandler(telegram.ext.Filters.text, self._button_select_callback))
-        self.updater.dispatcher.add_handler(CallbackQueryHandler(self._button_inline_select_callback))
-        self.updater.dispatcher.add_handler(telegram.ext.PollAnswerHandler(self._poll_answer))
-        self.updater.dispatcher.add_error_handler(self._msg_error_handler)
+        dispatcher.add_handler(CommandHandler("start", self._send_start_message))
+        dispatcher.add_handler(MessageHandler(telegram.ext.Filters.text, self._button_select_callback))
+        dispatcher.add_handler(CallbackQueryHandler(self._button_inline_select_callback))
+        dispatcher.add_handler(telegram.ext.PollAnswerHandler(self._poll_answer))
+        dispatcher.add_error_handler(self._msg_error_handler)
 
     def start(self, start_message_class: type, start_message_args: Any = None) -> None:
         """Set start message and run dispatcher."""
@@ -88,6 +89,8 @@ class TelegramMenuSession:
     def _send_start_message(self, update: Update, _: CallbackContext) -> None:
         """Start main message, app choice."""
         chat = update.effective_chat
+        if chat is None:
+            raise AttributeError("Chat object was not created")
         session = NavigationHandler(self._api_key, chat, self._scheduler)
         self.sessions.append(session)
         if self.start_message_class is None:
@@ -107,6 +110,8 @@ class TelegramMenuSession:
 
     def _button_select_callback(self, update: Update, context: CallbackContext) -> None:
         """Menu message main entry point."""
+        if update.effective_chat is None:
+            raise AttributeError("Chat object was not created")
         session = self.get_session(update.effective_chat.id)
         if session is None:
             self._send_start_message(update, context)
@@ -115,12 +120,16 @@ class TelegramMenuSession:
 
     def _poll_answer(self, update: Update, _: CallbackContext) -> None:
         """Entry point for poll selection."""
+        if update.effective_user is None:
+            raise AttributeError("User object was not created")
         session = next((x for x in self.sessions if x.user_name == update.effective_user.first_name), None)
         if session:
             session.poll_answer(update.poll_answer.option_ids[0])
 
     def _button_inline_select_callback(self, update: Update, context: CallbackContext) -> None:
         """Execute inline callback of an BaseMessage."""
+        if update.effective_chat is None:
+            raise AttributeError("Chat object was not created")
         session = self.get_session(update.effective_chat.id)
         if session is None:
             self._send_start_message(update, context)
@@ -128,8 +137,10 @@ class TelegramMenuSession:
         session.app_message_button_callback(update.callback_query.data, update.callback_query.id)
 
     @staticmethod
-    def _msg_error_handler(update: Update, context: CallbackContext) -> None:
+    def _msg_error_handler(update: object, context: CallbackContext) -> None:
         """Log Errors caused by Updates."""
+        if not isinstance(update, Update):
+            raise AttributeError("Incorrect updae object")
         error_message = str(context.error) if update is None else f"Update {update.update_id} - {str(context.error)}"
         logger.error(error_message)
 
@@ -163,7 +174,7 @@ class NavigationHandler:
         """Init NavigationHandler class."""
         request = Request(con_pool_size=self.CONNECTION_POOL_SIZE)
         self._bot = Bot(token=api_key, request=request)
-        self._poll: Optional[Poll] = None
+        self._poll: Optional[Message] = None
         self._poll_calback: Optional[TypeCallback] = None
 
         self.scheduler = scheduler
@@ -245,7 +256,10 @@ class NavigationHandler:
         return message.message_id
 
     def send_message(
-        self, content: str, keyboard: Optional[ReplyKeyboardMarkup] = None, notification: bool = True
+        self,
+        content: str,
+        keyboard: Optional[Union[ReplyKeyboardMarkup, InlineKeyboardMarkup]] = None,
+        notification: bool = True,
     ) -> telegram.Message:
         """Send a text message with html formatting."""
         return self._bot.send_message(

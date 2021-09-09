@@ -25,6 +25,8 @@ pip install telegram_menu
 
 You first need to [create a Telegram bot], then you can refer to the sample code in ``tests\test_connection.py`` to run a complete use-case.
 
+A session can be started with the keyword ``/start`` from a Telegram client.
+
 Following code block creates a ``Hello, World!`` message:
 
 ```python
@@ -44,10 +46,6 @@ class StartMessage(BaseMessage):
     def update(self) -> str:
         """Update message content."""
         return "Hello, world!"
-
-    def text_input(self, text: str) -> None:
-        """Optional, process text inputs from the keyboard."""
-        logging.info(f"Text received: '{text}'")
 
 TelegramMenuSession(API_KEY).start(StartMessage)
 ```

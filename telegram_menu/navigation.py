@@ -60,7 +60,7 @@ class TelegramMenuSession:
         try:
             logger.info("Connected with Telegram bot %s (%s)", bot.name, bot.first_name)
         except Unauthorized as error:
-            raise AttributeError("No bot found matching given API_KEY") from error
+            raise AttributeError("No bot found matching key %s" % api_key) from error
 
         self._api_key = api_key
         self.sessions: List[NavigationHandler] = []
@@ -140,7 +140,7 @@ class TelegramMenuSession:
     def _msg_error_handler(update: object, context: CallbackContext) -> None:
         """Log Errors caused by Updates."""
         if not isinstance(update, Update):
-            raise AttributeError("Incorrect updae object")
+            raise AttributeError("Incorrect update object")
         error_message = str(context.error) if update is None else f"Update {update.update_id} - {str(context.error)}"
         logger.error(error_message)
 
@@ -226,6 +226,9 @@ class NavigationHandler:
 
     def goto_home(self) -> int:
         """Go to home menu, empty menu_queue."""
+        if len(self._menu_queue) == 1:
+            # already at 'home' level
+            return self._menu_queue[0].message_id
         menu_previous = self._menu_queue.pop()
         while self._menu_queue:
             menu_previous = self._menu_queue.pop()
@@ -308,16 +311,20 @@ class NavigationHandler:
         message.keyboard_previous = message.keyboard.copy()
         return True
 
-    def select_menu_button(self, label: str) -> int:
+    def select_menu_button(self, label: str) -> Optional[int]:
         """Select menu button using label."""
+        msg_id = 0
         if label == "Back":
+            if len(self._menu_queue) == 1:
+                # already at 'home' level
+                return self._menu_queue[0].message_id
             menu_previous = self._menu_queue.pop()  # delete actual menu
             if self._menu_queue:
                 menu_previous = self._menu_queue.pop()
             return self.goto_menu(menu_previous)
         if label == "Home":
             return self.goto_home()
-        msg_id = 0
+
         for menu_item in self._menu_queue[::-1]:
             button_found = menu_item.get_button(label)
             if button_found:
@@ -334,14 +341,18 @@ class NavigationHandler:
                     message_callback()
                 return msg_id
 
-        # label does not match any sub-menu, process the input in last message updated
+        # label does not match any sub-menu, just process the user input
+        self.capture_user_input(label)
+        return None
+
+    def capture_user_input(self, label: str) -> None:
+        """Process the user input in the last message updated."""
         last_menu_message = self._menu_queue[-1]
         if self._message_queue:
             last_app_message = self._message_queue[-1]
             if last_app_message.time_alive > last_menu_message.time_alive:
                 last_menu_message = last_app_message
         last_menu_message.text_input(label)
-        return msg_id
 
     def app_message_button_callback(self, callback_label: str, callback_id: str) -> None:
         """Entry point to execute an action after message button selection."""
@@ -354,6 +365,7 @@ class NavigationHandler:
         button_found = message.get_button(label_action)
 
         if button_found is None:
+            logger.error("No button found with label %s, return", label_action)
             return
 
         if button_found.btype == ButtonType.PICTURE:

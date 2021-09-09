@@ -125,15 +125,15 @@ class ActionAppMessage(BaseMessage):
         return f"<code>Action! {content}</code>"
 
 
-class SecondMenuMessage(BaseMessage):
-    """Second example of menu."""
+class ThirdMenuMessage(BaseMessage):
+    """Third level of menu."""
 
-    LABEL = "second_message"
+    LABEL = "third_message"
 
     def __init__(self, navigation: NavigationHandler, update_callback: Optional[List[Any]] = None) -> None:
-        """Init SecondMenuMessage class."""
+        """Init ThirdMenuMessage class."""
         super().__init__(
-            navigation, SecondMenuMessage.LABEL, notification=False, expiry_period=datetime.timedelta(seconds=5)
+            navigation, ThirdMenuMessage.LABEL, notification=False, expiry_period=datetime.timedelta(seconds=5)
         )
 
         self.action_message = ActionAppMessage(self._navigation)
@@ -153,12 +153,33 @@ class SecondMenuMessage(BaseMessage):
 
     def update(self) -> str:
         """Update message content."""
-        return "Second message"
+        return "Third message"
 
     def text_input(self, text: str) -> None:
         """Process text received."""
         self.action_message.shared_content = text
         self._navigation.select_menu_button("Action")
+
+
+class SecondMenuMessage(BaseMessage):
+    """Second example of menu."""
+
+    LABEL = "second_message"
+
+    def __init__(self, navigation: NavigationHandler, update_callback: Optional[List[Any]] = None) -> None:
+        """Init SecondMenuMessage class."""
+        super().__init__(
+            navigation, SecondMenuMessage.LABEL, notification=False, expiry_period=datetime.timedelta(seconds=5)
+        )
+
+        third_menu = ThirdMenuMessage(navigation, update_callback)
+        self.add_button(label="Third menu", callback=third_menu, new_row=True)
+        self.add_button_back(new_row=True)
+        self.add_button_home()
+
+    def update(self) -> str:
+        """Update message content."""
+        return "Second message"
 
 
 class StartMessage(BaseMessage):
@@ -189,8 +210,8 @@ class StartMessage(BaseMessage):
 class Test(unittest.TestCase):
     """The basic class that inherits unittest.TestCase."""
 
-    session: Optional["TelegramMenuSession"] = None
-    navigation: Optional["NavigationHandler"] = None
+    session: TelegramMenuSession
+    navigation: NavigationHandler
     update_callback: List[Any] = []
 
     def setUp(self) -> None:
@@ -198,14 +219,18 @@ class Test(unittest.TestCase):
         with (Path.home() / ".telegram_menu" / "key.txt").open() as key_h:
             self.api_key = key_h.read().strip()
 
-        if Test.session is None:
+        if not hasattr(Test, "session"):
             init_logger()
             Test.session = TelegramMenuSession(api_key=self.api_key)
+
+            # create the session with the start message, 'update_callback' is used to testing prupose only here.
             Test.session.start(start_message_class=StartMessage, start_message_args=Test.update_callback)
 
             print("\n### Waiting for a manual request to start the Telegram session...\n")
-            while not Test.navigation:
-                Test.navigation = Test.session.get_session()
+            while not hasattr(Test, "navigation") or Test.navigation is None:
+                nav = Test.session.get_session()
+                if nav is not None:
+                    Test.navigation = nav
                 time.sleep(1)
 
     def test_1_wrong_api_key(self) -> None:
@@ -312,34 +337,51 @@ class Test(unittest.TestCase):
 
     def test_6_client_connection(self) -> None:
         """Run the client test."""
-        if Test.session is None or Test.navigation is None:
+        if not hasattr(Test, "session") or not hasattr(Test, "navigation"):
             self.fail("Telegram session not available")
         _navigation = Test.navigation
 
-        Test.session.broadcast_message("Broadcast message")
-        msg_id = _navigation.select_menu_button("Action")
-        self.assertGreater(msg_id, 1)
+        # try broadcasting a message to all opened sessions
+        msg_h = Test.session.broadcast_message("Broadcast message")
+        self.assertIsInstance(msg_h[0], telegram.message.Message)
 
+        # select 'Action' menu from home, check thay level is still 'Home' since flag 'home_after' is True
+        msg_home = _navigation.select_menu_button("Action")
+        self.assertEqual(msg_home, -1)
         time.sleep(0.5)
-        Test.session.broadcast_message("Test message")
+
+        self.go_check_id(label="Home", expected_id=msg_home)
+
+        # Open second menu and check that message id has increased
+        msg_menu2_id = _navigation.select_menu_button("Second menu")
+        self.assertGreater(msg_menu2_id, 1)
         time.sleep(0.5)
-        _navigation.select_menu_button("Action")
+
+        # Open third menu and check that message id has increased
+        msg_menu3_id = _navigation.select_menu_button("Third menu")
+        self.assertGreater(msg_menu3_id, msg_menu2_id)
         time.sleep(0.5)
-        _navigation.select_menu_button("Second menu")
+
+        # Select option button and check that message id has increased
+        msg_option_id = _navigation.select_menu_button("Option")
+        self.assertGreater(msg_option_id, msg_menu3_id)
         time.sleep(0.5)
-        _navigation.select_menu_button("Back")
-        time.sleep(0.5)
-        _navigation.select_menu_button("Second menu")
-        time.sleep(0.5)
-        _navigation.select_menu_button("Home")
-        time.sleep(0.5)
-        _navigation.select_menu_button("Second menu")
-        time.sleep(0.5)
-        _navigation.goto_home()
-        time.sleep(0.5)
-        _navigation.select_menu_button("Second menu")
-        time.sleep(0.5)
-        _navigation.select_menu_button("Option")
+
+        # go back from each sub-menu
+        self.go_check_id(label="Back")
+        self.go_check_id(label="Back")
+
+        # go home from heach sub-menu
+        self.go_check_id(label="Second menu")
+        self.go_check_id(label="Home")
+
+        self.go_check_id(label="Second menu")
+        self.go_check_id(label="Third menu")
+        self.go_check_id(label="Home")
+
+        self.go_check_id(label="Second menu")
+        self.go_check_id(label="Third menu")
+        self.go_check_id(label="Option")
         time.sleep(0.5)
 
         # run the update callback to trigger edition
@@ -348,6 +390,12 @@ class Test(unittest.TestCase):
 
         Test.session.updater.stop()
         logging.info("Test finished")
+
+    def go_check_id(self, label: str, expected_id: Optional[int] = None) -> None:
+        msg_id = Test.navigation.select_menu_button(label)
+        if expected_id is not None:
+            self.assertEqual(msg_id, expected_id)
+        time.sleep(0.2)
 
 
 def init_logger() -> None:

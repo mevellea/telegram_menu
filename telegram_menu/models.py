@@ -141,13 +141,13 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
         """
         return next(iter(y for x in self.keyboard for y in x if y.label == label), None)
 
-    def add_button_back(self) -> None:
+    def add_button_back(self, **args: Any) -> None:
         """Add a button to go back to previous menu."""
-        self.add_button("Back", None)
+        self.add_button(label="Back", callback=None, **args)
 
-    def add_button_home(self) -> None:
+    def add_button_home(self, **args: Any) -> None:
         """Add a button to go back to main menu."""
-        self.add_button("Home", None)
+        self.add_button(label="Home", callback=None, **args)
 
     def add_button(
         self,

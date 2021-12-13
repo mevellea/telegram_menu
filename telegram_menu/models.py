@@ -87,6 +87,7 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
         inlined: bool = False,
         home_after: bool = False,
         notification: bool = True,
+        input_field: str = "",
     ) -> None:
         """Init BaseMessage class."""
         self.keyboard: TypeKeyboard = [[]]
@@ -94,6 +95,7 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
         self.inlined = inlined
         self.notification = notification
         self._navigation = navigation
+        self.input_field = input_field
 
         # previous values are used to check if it has changed, to skip sending identical message
         self.keyboard_previous: TypeKeyboard = [[]]
@@ -201,18 +203,16 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
             inlined = self.inlined
         keyboard_buttons = []
         button_object = telegram.InlineKeyboardButton if inlined else KeyboardButton
-        input_field = ""
         for row in self.keyboard:
-            if not input_field and row:
-                input_field = row[0].label
+            if not self.input_field and row:
+                self.input_field = row[0].label
             keyboard_buttons.append([button_object(text=x.label, callback_data=f"{self.label}.{x.label}") for x in row])
         if inlined:
             return InlineKeyboardMarkup(inline_keyboard=keyboard_buttons, resize_keyboard=False)
-        if input_field:
+        if self.input_field and self.input_field != "<disable>":
             return ReplyKeyboardMarkup(
-                keyboard=keyboard_buttons, resize_keyboard=True, input_field_placeholder=input_field
+                keyboard=keyboard_buttons, resize_keyboard=True, input_field_placeholder=self.input_field
             )
-
         return ReplyKeyboardMarkup(keyboard=keyboard_buttons, resize_keyboard=True)
 
     def is_alive(self) -> None:

@@ -135,7 +135,11 @@ class ThirdMenuMessage(BaseMessage):
     def __init__(self, navigation: NavigationHandler, update_callback: Optional[List[Any]] = None) -> None:
         """Init ThirdMenuMessage class."""
         super().__init__(
-            navigation, ThirdMenuMessage.LABEL, notification=False, expiry_period=datetime.timedelta(seconds=5)
+            navigation,
+            ThirdMenuMessage.LABEL,
+            notification=False,
+            expiry_period=datetime.timedelta(seconds=5),
+            input_field="<disable>",  # use '<disable>' to leave the input field empty
         )
 
         self.action_message = ActionAppMessage(self._navigation)
@@ -171,7 +175,11 @@ class SecondMenuMessage(BaseMessage):
     def __init__(self, navigation: NavigationHandler, update_callback: Optional[List[Any]] = None) -> None:
         """Init SecondMenuMessage class."""
         super().__init__(
-            navigation, SecondMenuMessage.LABEL, notification=False, expiry_period=datetime.timedelta(seconds=5)
+            navigation,
+            SecondMenuMessage.LABEL,
+            notification=False,
+            expiry_period=datetime.timedelta(seconds=5),
+            input_field="Enter an option",
         )
 
         third_menu = ThirdMenuMessage(navigation, update_callback)

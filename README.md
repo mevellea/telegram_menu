@@ -97,6 +97,8 @@ To define a message as inlined, the property ``inlined`` must be set to ``True``
 
 A message can also be used to create a poll or show a picture, using property ``btype``.
 
+The input field can be set using the property ``input_field`` (non-inlined messages only). You can use the keyword ``<disable>`` to restore the default behaviour. 
+
 The default number of buttons per row is 2 for base keyboards, 4 for inlined keyboards, 
 to create a new row the property ``new_row`` can be set to ``True`` when calling ``add_button()``.
 

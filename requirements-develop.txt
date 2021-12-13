@@ -1,0 +1,15 @@
+-r requirements.txt
+# metrics
+black
+isort
+mypy
+pycodestyle
+pydocstyle
+pylint
+rope
+setuptools
+types-emoji
+# documentation
+Sphinx
+sphinx-autodoc-typehints
+sphinx-rtd-theme

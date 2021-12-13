@@ -4,18 +4,20 @@
 
 import datetime
 import logging
-import os
-import re
 import time
 import unittest
 from pathlib import Path
-from typing import IO, Any, Dict, List, Optional, Union
+from typing import Any, List, Optional, Union
 
 import telegram
-from typing_extensions import TypedDict
+
+try:
+    from typing_extensions import TypedDict
+except ImportError:
+    from typing import TypedDict
 
 from telegram_menu import BaseMessage, ButtonType, MenuButton, NavigationHandler, TelegramMenuSession
-from telegram_menu._version import __raw_url__, __url__
+from telegram_menu._version import __raw_url__
 
 KeyboardContent = List[Union[str, List[str]]]
 KeyboardTester = TypedDict("KeyboardTester", {"buttons": int, "output": List[int]})
@@ -46,7 +48,7 @@ class OptionsAppMessage(BaseMessage):
             self.is_alive()
 
     def kill_message(self) -> None:
-        """Kill message after this callback."""
+        """Kill the message after this callback."""
         self._toggle_play_button()
 
     def action_button(self) -> str:
@@ -61,7 +63,7 @@ class OptionsAppMessage(BaseMessage):
         return format_list(data)
 
     def picture_default(self) -> str:
-        """Display the deafult picture."""
+        """Display the default picture."""
         self._toggle_play_button()
         return "invalid_picture_path"
 
@@ -76,13 +78,13 @@ class OptionsAppMessage(BaseMessage):
         return f"{__raw_url__}/resources/classes.png"
 
     def _toggle_play_button(self) -> None:
-        """Toogle the first button between play and pause mode."""
+        """Toggle the first button between play and pause mode."""
         self.play_pause = not self.play_pause
 
     @staticmethod
     def action_poll(poll_answer: str) -> None:
         """Display poll answer."""
-        logging.info("Answer is %s", poll_answer)
+        logging.info(f"Answer is {poll_answer}")
 
     def update(self) -> str:
         """Update message content."""
@@ -223,7 +225,7 @@ class Test(unittest.TestCase):
             init_logger()
             Test.session = TelegramMenuSession(api_key=self.api_key)
 
-            # create the session with the start message, 'update_callback' is used to testing prupose only here.
+            # create the session with the start message, 'update_callback' is used to testing purpose only here.
             Test.session.start(start_message_class=StartMessage, start_message_args=Test.update_callback)
 
             print("\n### Waiting for a manual request to start the Telegram session...\n")
@@ -235,10 +237,10 @@ class Test(unittest.TestCase):
 
     def test_1_wrong_api_key(self) -> None:
         """Test starting a client with wrong key."""
-        with self.assertRaises(AttributeError):
+        with self.assertRaises(KeyError):
             TelegramMenuSession(None)  # type: ignore
 
-        with self.assertRaises(AttributeError):
+        with self.assertRaises(KeyError):
             TelegramMenuSession(1234)  # type: ignore
 
         with self.assertRaises(AttributeError):
@@ -250,9 +252,9 @@ class Test(unittest.TestCase):
             {"description": "No emoji", "input": "lbl", "output": "lbl"},
             {"description": "Invalid emoji", "input": ":lbl:", "output": ":lbl:"},
             {"description": "Empty string", "input": "", "output": ""},
-            {"description": "Valid emoji", "input": ":play_button:", "output": "▶"},
-            {"description": "Consecutive emoji", "input": ":play_button:-:play_button::", "output": "▶-▶:"},
-            {"description": "Consecutive emoji 2", "input": ":play_button: , :pause_button:", "output": "▶ , ⏸"},
+            {"description": "Valid emoji", "input": ":robot:", "output": "🤖"},
+            {"description": "Consecutive emoji", "input": ":robot:-:robot::", "output": "🤖-🤖:"},
+            {"description": "Consecutive emoji 2", "input": ":robot: , :ghost:", "output": "🤖 , 👻"},
         ]
         for vector in vectors:
             button = MenuButton(label=vector["input"])
@@ -345,7 +347,7 @@ class Test(unittest.TestCase):
         msg_h = Test.session.broadcast_message("Broadcast message")
         self.assertIsInstance(msg_h[0], telegram.message.Message)
 
-        # select 'Action' menu from home, check thay level is still 'Home' since flag 'home_after' is True
+        # select 'Action' menu from home, check that level is still 'Home' since flag 'home_after' is True
         msg_home = _navigation.select_menu_button("Action")
         self.assertEqual(msg_home, -1)
         time.sleep(0.5)
@@ -371,7 +373,7 @@ class Test(unittest.TestCase):
         self.go_check_id(label="Back")
         self.go_check_id(label="Back")
 
-        # go home from heach sub-menu
+        # go home from each sub-menu
         self.go_check_id(label="Second menu")
         self.go_check_id(label="Home")
 
@@ -417,15 +419,7 @@ def init_logger() -> None:
 
 
 def format_list(args_array: KeyboardContent) -> str:
-    """Format array of strings in html, first element bold.
-
-    Args:
-        args_array: text content
-
-    Returns:
-        Message content as formatted string
-
-    """
+    """Format array of strings in html, first element bold."""
     content = ""
     for line in args_array:
         if not isinstance(line, list):

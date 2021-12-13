@@ -201,13 +201,18 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
             inlined = self.inlined
         keyboard_buttons = []
         button_object = telegram.InlineKeyboardButton if inlined else KeyboardButton
-
+        input_field = ""
         for row in self.keyboard:
-            keyboard_buttons.append(
-                [button_object(text=x.label, callback_data="%s.%s" % (self.label, x.label)) for x in row]
-            )
+            if not input_field and row:
+                input_field = row[0].label
+            keyboard_buttons.append([button_object(text=x.label, callback_data=f"{self.label}.{x.label}") for x in row])
         if inlined:
             return InlineKeyboardMarkup(inline_keyboard=keyboard_buttons, resize_keyboard=False)
+        if input_field:
+            return ReplyKeyboardMarkup(
+                keyboard=keyboard_buttons, resize_keyboard=True, input_field_placeholder=input_field
+            )
+
         return ReplyKeyboardMarkup(keyboard=keyboard_buttons, resize_keyboard=True)
 
     def is_alive(self) -> None:
@@ -215,18 +220,14 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
         self.time_alive = datetime.datetime.now()
 
     def has_expired(self) -> bool:
-        """Return True if expiry date of message has expired.
-
-        Returns:
-            True if timer has expired
-        """
+        """Return True if expiry date of message has expired."""
         if self.time_alive is not None:
             return self.time_alive + self.expiry_period < datetime.datetime.now()
         return False
 
     def kill_message(self) -> None:
         """Display status before message is destroyed."""
-        logger.debug("Removing message '%s' (%s)", self.label, self.message_id)
+        logger.debug(f"Removing message '{self.label}' ({self.message_id})")
 
 
 def emoji_replace(label: str) -> str:

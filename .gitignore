@@ -3,6 +3,7 @@ __pycache__
 .coverage
 .vscode
 .pytest_cache
+.mypy_cache
 .idea
 *.egg-info
 *.egg
@@ -11,3 +12,4 @@ htmlcov
 coverage.json
 docs/_build
 dist/*.tar.gz
+reports/*.txt

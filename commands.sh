@@ -11,7 +11,7 @@ call_black()
 call_pylint()
 {
   echo "### Call pylint"
-  pylint telegram_menu
+  pylint telegram_menu tests
 }
 
 call_pystyle()

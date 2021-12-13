@@ -9,11 +9,10 @@ import logging
 import mimetypes
 import time
 from pathlib import Path
-from typing import Any, BinaryIO, List, Optional, Union
+from typing import Any, List, Optional, Union
 
 import telegram.ext
 import validators
-from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.schedulers.base import BaseScheduler
 from telegram import Bot, Chat, ChatAction, InlineKeyboardMarkup, Message, ReplyKeyboardMarkup
 from telegram.error import Unauthorized
@@ -38,17 +37,10 @@ class TelegramMenuSession:
 
     start_message_class: type
 
-    def __init__(self, api_key: str, scheduler: Optional[BaseScheduler] = None) -> None:
+    def __init__(self, api_key: str) -> None:
         """Initialize TelegramMenuSession class."""
         if not isinstance(api_key, str):
-            raise AttributeError("API_KEY must be a string!")
-
-        if scheduler is not None:
-            if not isinstance(scheduler, BaseScheduler):
-                raise AttributeError("scheduler base class must be BaseScheduler!")
-            self._scheduler = scheduler
-        else:
-            self._scheduler = BackgroundScheduler()
+            raise KeyError("API_KEY must be a string!")
 
         self.updater = telegram.ext.Updater(
             api_key,
@@ -57,10 +49,11 @@ class TelegramMenuSession:
         )
         bot: Bot = self.updater.bot  # type: ignore
         dispatcher: Dispatcher = self.updater.dispatcher  # type: ignore
+        self.scheduler = self.updater.job_queue.scheduler  # type: ignore
         try:
-            logger.info("Connected with Telegram bot %s (%s)", bot.name, bot.first_name)
+            logger.info(f"Connected with Telegram bot  {bot.name} ({bot.first_name})")
         except Unauthorized as error:
-            raise AttributeError("No bot found matching key %s" % api_key) from error
+            raise AttributeError(f"No bot found matching key {api_key}") from error
 
         self._api_key = api_key
         self.sessions: List[NavigationHandler] = []
@@ -82,16 +75,16 @@ class TelegramMenuSession:
         if start_message_args is not None and not isinstance(start_message_args, list):
             raise AttributeError("start_message_args is not a list!")
 
-        if not self._scheduler.running:
-            self._scheduler.start()
+        if not self.scheduler.running:
+            self.scheduler.start()
         self.updater.start_polling()
 
-    def _send_start_message(self, update: Update, _: CallbackContext) -> None:
+    def _send_start_message(self, update: Update, _: CallbackContext) -> None:  # type: ignore
         """Start main message, app choice."""
         chat = update.effective_chat
         if chat is None:
             raise AttributeError("Chat object was not created")
-        session = NavigationHandler(self._api_key, chat, self._scheduler)
+        session = NavigationHandler(self._api_key, chat, self.scheduler)
         self.sessions.append(session)
         if self.start_message_class is None:
             raise AttributeError("Message class not defined")
@@ -108,7 +101,7 @@ class TelegramMenuSession:
             return None
         return sessions[0]
 
-    def _button_select_callback(self, update: Update, context: CallbackContext) -> None:
+    def _button_select_callback(self, update: Update, context: CallbackContext) -> None:  # type: ignore
         """Menu message main entry point."""
         if update.effective_chat is None:
             raise AttributeError("Chat object was not created")
@@ -118,7 +111,7 @@ class TelegramMenuSession:
             return
         session.select_menu_button(update.message.text)
 
-    def _poll_answer(self, update: Update, _: CallbackContext) -> None:
+    def _poll_answer(self, update: Update, _: CallbackContext) -> None:  # type: ignore
         """Entry point for poll selection."""
         if update.effective_user is None:
             raise AttributeError("User object was not created")
@@ -126,7 +119,7 @@ class TelegramMenuSession:
         if session:
             session.poll_answer(update.poll_answer.option_ids[0])
 
-    def _button_inline_select_callback(self, update: Update, context: CallbackContext) -> None:
+    def _button_inline_select_callback(self, update: Update, context: CallbackContext) -> None:  # type: ignore
         """Execute inline callback of an BaseMessage."""
         if update.effective_chat is None:
             raise AttributeError("Chat object was not created")
@@ -137,7 +130,7 @@ class TelegramMenuSession:
         session.app_message_button_callback(update.callback_query.data, update.callback_query.id)
 
     @staticmethod
-    def _msg_error_handler(update: object, context: CallbackContext) -> None:
+    def _msg_error_handler(update: object, context: CallbackContext) -> None:  # type: ignore
         """Log Errors caused by Updates."""
         if not isinstance(update, Update):
             raise AttributeError("Incorrect update object")
@@ -175,14 +168,14 @@ class NavigationHandler:
         request = Request(con_pool_size=self.CONNECTION_POOL_SIZE)
         self._bot = Bot(token=api_key, request=request)
         self._poll: Optional[Message] = None
-        self._poll_calback: Optional[TypeCallback] = None
+        self._poll_callback: Optional[TypeCallback] = None
 
         self.scheduler = scheduler
         self.chat_id = chat.id
         self.user_name = chat.first_name
         self.poll_name = f"poll_{self.user_name}"
 
-        logger.info("Opening chat with user %s", self.user_name)
+        logger.info(f"Opening chat with user {self.user_name}")
 
         self._menu_queue: List[BaseMessage] = []  # list of menus selected by user
         self._message_queue: List[BaseMessage] = []  # list of application messages sent
@@ -217,7 +210,7 @@ class NavigationHandler:
     def goto_menu(self, menu_message: BaseMessage) -> int:
         """Send menu message and add to queue."""
         content = menu_message.update()
-        logger.info("Opening menu %s", menu_message.label)
+        logger.info(f"Opening menu {menu_message.label}")
         keyboard = menu_message.gen_keyboard_content(inlined=False)
         message = self.send_message(emoji_replace(content), keyboard, notification=menu_message.notification)
         menu_message.is_alive()
@@ -238,7 +231,7 @@ class NavigationHandler:
         """Send an application message."""
         content = emoji_replace(message.update())
         # if message with this label already exist in message_queue, delete it and replace it
-        logger.info("Send message %s: %s", message.label, label)
+        logger.info(f"Send message {message.label}: {label}")
         if "_" not in message.label:
             message.label = f"{message.label}_{label}"
 
@@ -357,15 +350,15 @@ class NavigationHandler:
     def app_message_button_callback(self, callback_label: str, callback_id: str) -> None:
         """Entry point to execute an action after message button selection."""
         label_message, label_action = callback_label.split(".")
-        logger.info("Received action request from %s: %s", label_message, label_action)
+        logger.info(f"Received action request from {label_message}: {label_action}")
         message = self.get_message(label_message)
         if message is None:
-            logger.error("Message with label %s not found, return", label_message)
+            logger.error(f"Message with label {label_message} not found, return")
             return
         button_found = message.get_button(label_action)
 
         if button_found is None:
-            logger.error("No button found with label %s, return", label_action)
+            logger.error(f"No button found with label {label_action}, return")
             return
 
         if button_found.btype == ButtonType.PICTURE:
@@ -376,7 +369,7 @@ class NavigationHandler:
             self._bot.send_chat_action(chat_id=self.chat_id, action=ChatAction.TYPING)
         elif button_found.btype == ButtonType.POLL:
             self.send_poll(question=button_found.args[0], options=button_found.args[1])
-            self._poll_calback = button_found.callback
+            self._poll_callback = button_found.callback
             self._bot.answer_callback_query(callback_id, text="Select an answer...")
             return
 
@@ -405,7 +398,7 @@ class NavigationHandler:
         self.edit_message(message)
 
     @staticmethod
-    def _picture_check_replace(picture_path: str) -> Union[str, BinaryIO]:
+    def _picture_check_replace(picture_path: str) -> Union[str, bytes]:
         """Check if the given picture path or uri is correct, replace by default if not."""
         try:
             if validators.url(picture_path):
@@ -415,15 +408,12 @@ class NavigationHandler:
                     return picture_path
                 raise ValueError("Url is not a picture")
             if Path(picture_path).is_file() and imghdr.what(picture_path):
-                return open(picture_path, "rb")
+                with open(picture_path, "rb") as file_h:
+                    return file_h.read()
             raise ValueError("Path is not a picture")
         except ValueError:
             url_default = f"{__raw_url__}/resources/stats_default.png"
-            logger.error(
-                "Picture path '%s' is invalid, replacing with default %s",
-                picture_path,
-                url_default,
-            )
+            logger.error(f"Picture path '{picture_path}' is invalid, replacing with default {url_default}")
             return url_default
 
     def send_photo(self, picture_path: str, notification: bool = True) -> Optional[telegram.Message]:
@@ -432,7 +422,7 @@ class NavigationHandler:
         try:
             return self._bot.send_photo(chat_id=self.chat_id, photo=picture_obj, disable_notification=not notification)
         except telegram.error.BadRequest as error:
-            logger.error("Failed to send picture '%s': %s", picture_obj, error)
+            logger.error(f"Failed to send picture {picture_path}: {error}")
         return None
 
     def get_message(self, label_message: str) -> Optional[BaseMessage]:
@@ -463,24 +453,22 @@ class NavigationHandler:
         """Run when poll timeout has expired."""
         if self._poll is not None:
             try:
-                logger.info("Deleting poll '%s'", self._poll.poll.question)
+                logger.info(f"Deleting poll '{self._poll.poll.question}'")
                 self._bot.delete_message(chat_id=self.chat_id, message_id=self._poll.message_id)
             except telegram.error.BadRequest:
-                logger.error("Poll message %s already deleted", self._poll.message_id)
+                logger.error(f"Poll message {self._poll.message_id} already deleted")
 
     def poll_answer(self, answer_id: int) -> None:
         """Run when poll message is received."""
-        if self._poll is None or self._poll_calback is None or not callable(self._poll_calback):
+        if self._poll is None or self._poll_callback is None or not callable(self._poll_callback):
             logger.error("Poll is not defined")
             return
 
         logger.info(
-            "%s's answer to question '%s' is '%s'",
-            self.user_name,
-            self._poll.poll.question,
-            self._poll.poll.options[answer_id].text,
+            f"{self.user_name}'s answer to question '{self._poll.poll.question}' is "
+            f"'{self._poll.poll.options[answer_id].text}'"
         )
-        self._poll_calback(self._poll.poll.options[answer_id].text)
+        self._poll_callback(self._poll.poll.options[answer_id].text)
         time.sleep(1)
         self.poll_delete()
 

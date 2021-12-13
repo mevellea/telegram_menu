@@ -1,8 +1,6 @@
 # telegram_menu package
 
-<img src="https://img.shields.io/badge/python-3.7-blue.svg" alt="drawing"/>
-<img src="https://img.shields.io/badge/python-3.8-blue.svg" alt="drawing"/>
-<img src="https://img.shields.io/badge/python-3.9-blue.svg" alt="drawing"/>
+<img src="https://img.shields.io/badge/python-3.7-blue.svg" alt="drawing"/> <img src="https://img.shields.io/badge/python-3.8-blue.svg" alt="drawing"/> <img src="https://img.shields.io/badge/python-3.9-blue.svg" alt="drawing"/>
 <br/>
 A python library to generate navigation menus using Telegram Bot API.
 

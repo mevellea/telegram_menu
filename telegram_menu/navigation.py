@@ -227,11 +227,17 @@ class NavigationHandler:
             menu_previous = self._menu_queue.pop()
         return self.goto_menu(menu_previous)
 
+    @staticmethod
+    def filter_unicode(input_string: str) -> str:
+        """Remove non-unicode characters from input string."""
+        return input_string.encode("ascii", "ignore").decode("utf-8")
+
     def _send_app_message(self, message: BaseMessage, label: str) -> int:
         """Send an application message."""
         content = emoji_replace(message.update())
         # if message with this label already exist in message_queue, delete it and replace it
-        logger.info(f"Send message {message.label}: {label}")
+        info_message = self.filter_unicode(f"Send message '{message.label}': '{label}'")
+        logger.info(str(info_message))
         if "_" not in message.label:
             message.label = f"{message.label}_{label}"
 
@@ -350,7 +356,8 @@ class NavigationHandler:
     def app_message_button_callback(self, callback_label: str, callback_id: str) -> None:
         """Entry point to execute an action after message button selection."""
         label_message, label_action = callback_label.split(".")
-        logger.info(f"Received action request from {label_message}: {label_action}")
+        log_message = self.filter_unicode(f"Received action request from '{label_message}': '{label_action}'")
+        logger.info(log_message)
         message = self.get_message(label_message)
         if message is None:
             logger.error(f"Message with label {label_message} not found, return")

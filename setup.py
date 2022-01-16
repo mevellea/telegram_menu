@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 # mypy: ignore-errors
+# flake8: noqa
 
 """telegram_menu package installer."""
 

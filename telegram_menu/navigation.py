@@ -310,7 +310,7 @@ class NavigationHandler:
         message.keyboard_previous = message.keyboard.copy()
         return True
 
-    def select_menu_button(self, label: str) -> Optional[int]:
+    def select_menu_button(self, label: str) -> Optional[int]:  # noqa: C901
         """Select menu button using label."""
         msg_id = 0
         if label == "Back":

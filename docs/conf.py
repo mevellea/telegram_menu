@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # type: ignore
+# flake8: noqa
 
 """Sphinx documentation generation."""
 

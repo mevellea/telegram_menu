@@ -66,7 +66,7 @@ class TelegramMenuSession:
         dispatcher.add_handler(telegram.ext.PollAnswerHandler(self._poll_answer))
         dispatcher.add_error_handler(self._msg_error_handler)
 
-    def start(self, start_message_class: type, start_message_args: Any = None) -> None:
+    def start(self, start_message_class: type, start_message_args: Any = None, idle: bool = False) -> None:
         """Set start message and run dispatcher."""
         self.start_message_class = start_message_class
         self.start_message_args = start_message_args
@@ -78,6 +78,8 @@ class TelegramMenuSession:
         if not self.scheduler.running:
             self.scheduler.start()
         self.updater.start_polling()
+        if idle:
+            self.updater.idle()
 
     def _send_start_message(self, update: Update, _: CallbackContext) -> None:  # type: ignore
         """Start main message, app choice."""

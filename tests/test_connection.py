@@ -234,7 +234,7 @@ class Test(unittest.TestCase):
             Test.session = TelegramMenuSession(api_key=self.api_key)
 
             # create the session with the start message, 'update_callback' is used to testing purpose only here.
-            Test.session.start(start_message_class=StartMessage, start_message_args=Test.update_callback)
+            Test.session.start(start_message_class=StartMessage, start_message_args=Test.update_callback, idle=False)
 
             print("\n### Waiting for a manual request to start the Telegram session...\n")
             while not hasattr(Test, "navigation") or Test.navigation is None:

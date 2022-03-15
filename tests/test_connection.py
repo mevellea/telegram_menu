@@ -62,6 +62,11 @@ class OptionsAppMessage(BaseMessage):
         data: KeyboardContent = [["text1", "value1"], ["text2", "value2"]]
         return format_list(data)
 
+    def sticker_default(self) -> str:
+        """Display the default sticker."""
+        self._toggle_play_button()
+        return f"{__raw_url__}/resources/stats_default.webp"
+
     def picture_default(self) -> str:
         """Display the default picture."""
         self._toggle_play_button()
@@ -93,7 +98,7 @@ class OptionsAppMessage(BaseMessage):
         play_pause_button = ":play_button:" if self.play_pause else ":pause_button:"
         self.keyboard = [
             [
-                MenuButton(play_pause_button, callback=self.action_button),
+                MenuButton(play_pause_button, callback=self.sticker_default, btype=ButtonType.STICKER),
                 MenuButton(":twisted_rightwards_arrows:", callback=self.picture_default, btype=ButtonType.PICTURE),
                 MenuButton(":chart_with_upwards_trend:", callback=self.picture_button, btype=ButtonType.PICTURE),
                 MenuButton(":chart_with_downwards_trend:", callback=self.picture_button2, btype=ButtonType.PICTURE),
@@ -142,8 +147,8 @@ class ThirdMenuMessage(BaseMessage):
             input_field="<disable>",  # use '<disable>' to leave the input field empty
         )
 
-        self.action_message = ActionAppMessage(self._navigation)
-        option_message = OptionsAppMessage(self._navigation, update_callback)
+        self.action_message = ActionAppMessage(self.navigation)
+        option_message = OptionsAppMessage(self.navigation, update_callback)
         self.add_button(label="Option", callback=option_message)
         self.add_button("Action", self.action_message)
         self.add_button_back()
@@ -163,8 +168,9 @@ class ThirdMenuMessage(BaseMessage):
 
     def text_input(self, text: str) -> None:
         """Process text received."""
-        self.action_message.shared_content = text
-        self._navigation.select_menu_button("Action")
+        msg_id = self.navigation.select_menu_button("Action")
+        self.navigation.delete_message(message_id=msg_id)
+        print(id)
 
 
 class SecondMenuMessage(BaseMessage):
@@ -306,6 +312,12 @@ class Test(unittest.TestCase):
             self.assertIsInstance(messages, List)
             self.assertEqual(len(messages), 1)
             self.assertIsInstance(messages[0], telegram.Message)
+
+        sticker_path = (ROOT_FOLDER / "resources" / "stats_default.webp").resolve().as_posix()
+        messages = Test.session.broadcast_sticker(sticker_path=sticker_path)
+        self.assertIsInstance(messages, List)
+        self.assertEqual(len(messages), 1)
+        self.assertIsInstance(messages[0], telegram.Message)
 
     def test_5_keyboard_combinations(self) -> None:
         """Run the client test."""

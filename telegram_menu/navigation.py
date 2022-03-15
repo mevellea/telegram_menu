@@ -34,10 +34,11 @@ class TelegramMenuSession:
     # delays in seconds
     READ_TIMEOUT = 6
     CONNECT_TIMEOUT = 7
+    START_MESSAGE = "start"
 
     start_message_class: type
 
-    def __init__(self, api_key: str) -> None:
+    def __init__(self, api_key: str, start_message: str = START_MESSAGE) -> None:
         """Initialize TelegramMenuSession class."""
         if not isinstance(api_key, str):
             raise KeyError("API_KEY must be a string!")
@@ -60,7 +61,7 @@ class TelegramMenuSession:
         self.start_message_args = None
 
         # on different commands - answer in Telegram
-        dispatcher.add_handler(CommandHandler("start", self._send_start_message))
+        dispatcher.add_handler(CommandHandler(start_message, self._send_start_message))
         dispatcher.add_handler(MessageHandler(telegram.ext.Filters.text, self._button_select_callback))
         dispatcher.add_handler(CallbackQueryHandler(self._button_inline_select_callback))
         dispatcher.add_handler(telegram.ext.PollAnswerHandler(self._poll_answer))
@@ -157,6 +158,15 @@ class TelegramMenuSession:
                 messages.append(msg)
         return messages
 
+    def broadcast_sticker(self, sticker_path: str, notification: bool = True) -> List[telegram.Message]:
+        """Broadcast picture to all sessions."""
+        messages = []
+        for session in self.sessions:
+            msg = session.send_sticker(sticker_path, notification=notification)
+            if msg is not None:
+                messages.append(msg)
+        return messages
+
 
 class NavigationHandler:
     """Navigation handler for Telegram application."""
@@ -201,12 +211,16 @@ class NavigationHandler:
         if len(self._menu_queue) >= 2 and self._menu_queue[-1].has_expired():
             self.goto_home()
 
+    def delete_message(self, message_id: int) -> None:
+        """Delete a message from its id."""
+        self._bot.delete_message(chat_id=self.chat_id, message_id=message_id)
+
     def _delete_queued_message(self, message: BaseMessage) -> None:
         """Delete a message, remove from queue."""
         message.kill_message()
         if message in self._message_queue:
             self._message_queue.remove(message)
-            self._bot.delete_message(chat_id=self.chat_id, message_id=message.message_id)
+            self.delete_message(message.message_id)
         del message
 
     def goto_menu(self, menu_message: BaseMessage) -> int:
@@ -260,10 +274,10 @@ class NavigationHandler:
         return message.message_id
 
     def send_message(
-            self,
-            content: str,
-            keyboard: Optional[Union[ReplyKeyboardMarkup, InlineKeyboardMarkup]] = None,
-            notification: bool = True,
+        self,
+        content: str,
+        keyboard: Optional[Union[ReplyKeyboardMarkup, InlineKeyboardMarkup]] = None,
+        notification: bool = True,
     ) -> telegram.Message:
         """Send a text message with html formatting."""
         return self._bot.send_message(
@@ -370,7 +384,7 @@ class NavigationHandler:
             logger.error(f"No button found with label {label_action}, return")
             return
 
-        if button_found.btype == ButtonType.PICTURE:
+        if button_found.btype in [ButtonType.PICTURE, ButtonType.STICKER]:
             # noinspection PyTypeChecker
             self._bot.send_chat_action(chat_id=self.chat_id, action=ChatAction.UPLOAD_PHOTO)
         elif button_found.btype == ButtonType.MESSAGE:
@@ -392,9 +406,12 @@ class NavigationHandler:
 
         # send picture if custom label found
         if button_found.btype == ButtonType.PICTURE:
-            picture_path = action_status
-            self.send_photo(picture_path, notification=button_found.notification)
+            self.send_photo(picture_path=action_status, notification=button_found.notification)
             self._bot.answer_callback_query(callback_id, text="Picture sent!")
+            return
+        if button_found.btype == ButtonType.STICKER:
+            self.send_sticker(sticker_path=action_status, notification=button_found.notification)
+            self._bot.answer_callback_query(callback_id, text="Sticker sent!")
             return
         if button_found.btype == ButtonType.MESSAGE:
             self.send_message(action_status, notification=button_found.notification)
@@ -407,12 +424,25 @@ class NavigationHandler:
         self.edit_message(message)
 
     @staticmethod
-    def _is_valid_sticker_format(sticker_path: str) -> bool:
-        """Check if sticker is correct file type"""
-        return sticker_path.lower().endswith('.webp')
+    def _sticker_check_replace(sticker_path: str) -> Union[str, bytes]:
+        """Check if sticker is correct file type."""
+        try:
+            if not sticker_path.lower().endswith(".webp"):
+                raise ValueError("Sticker has no .webp format")
+            if validators.url(sticker_path):
+                # todo: add check if url exists
+                return sticker_path
+            if Path(sticker_path).is_file() and imghdr.what(sticker_path):
+                with open(sticker_path, "rb") as file_h:
+                    return file_h.read()
+            raise ValueError("Path is not a picture")
+        except ValueError:
+            url_default = f"{__raw_url__}/resources/stats_default.webp"
+            logger.error(f"Picture path '{sticker_path}' is invalid, replacing with default {url_default}")
+            return url_default
 
     @staticmethod
-    def _picture_check_replace(picture_path: str, is_sticker: bool = False) -> Union[str, bytes]:
+    def _picture_check_replace(picture_path: str) -> Union[str, bytes]:
         """Check if the given picture path or uri is correct, replace by default if not."""
         try:
             if validators.url(picture_path):
@@ -426,14 +456,13 @@ class NavigationHandler:
                     return file_h.read()
             raise ValueError("Path is not a picture")
         except ValueError:
-            file_type = '.webp' if is_sticker else '.png'
-            url_default = f"{__raw_url__}/resources/stats_default{file_type}"
+            url_default = f"{__raw_url__}/resources/stats_default.png"
             logger.error(f"Picture path '{picture_path}' is invalid, replacing with default {url_default}")
             return url_default
 
     def send_photo(self, picture_path: str, notification: bool = True) -> Optional[telegram.Message]:
         """Send a picture."""
-        picture_obj = self._picture_check_replace(picture_path=picture_path, is_sticker=False)
+        picture_obj = self._picture_check_replace(picture_path=picture_path)
         try:
             return self._bot.send_photo(chat_id=self.chat_id, photo=picture_obj, disable_notification=not notification)
         except telegram.error.BadRequest as error:
@@ -442,10 +471,7 @@ class NavigationHandler:
 
     def send_sticker(self, sticker_path: str, notification: bool = True) -> Optional[telegram.Message]:
         """Send a picture."""
-        if not self._is_valid_sticker_format(sticker_path=sticker_path):
-            logger.warning(f"Sticker {sticker_path} is not of the correct format.")
-            return None
-        sticker_obj = self._picture_check_replace(picture_path=sticker_path, is_sticker=True)
+        sticker_obj = self._sticker_check_replace(sticker_path=sticker_path)
         try:
             return self._bot.send_sticker(
                 chat_id=self.chat_id, sticker=sticker_obj, disable_notification=not notification

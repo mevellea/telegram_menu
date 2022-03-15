@@ -32,6 +32,7 @@ class ButtonType(Enum):
     NOTIFICATION = auto()
     MESSAGE = auto()
     PICTURE = auto()
+    STICKER = auto()
     POLL = auto()
 
 
@@ -94,7 +95,7 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
         self.label = emoji_replace(label)
         self.inlined = inlined
         self.notification = notification
-        self._navigation = navigation
+        self.navigation = navigation
         self.input_field = input_field
 
         # previous values are used to check if it has changed, to skip sending identical message
@@ -188,7 +189,7 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
         Returns:
             True if message was edited
         """
-        return self._navigation.edit_message(self)
+        return self.navigation.edit_message(self)
 
     def gen_keyboard_content(self, inlined: Optional[bool] = None) -> Union[ReplyKeyboardMarkup, InlineKeyboardMarkup]:
         """Generate keyboard.

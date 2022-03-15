@@ -260,10 +260,10 @@ class NavigationHandler:
         return message.message_id
 
     def send_message(
-        self,
-        content: str,
-        keyboard: Optional[Union[ReplyKeyboardMarkup, InlineKeyboardMarkup]] = None,
-        notification: bool = True,
+            self,
+            content: str,
+            keyboard: Optional[Union[ReplyKeyboardMarkup, InlineKeyboardMarkup]] = None,
+            notification: bool = True,
     ) -> telegram.Message:
         """Send a text message with html formatting."""
         return self._bot.send_message(
@@ -407,7 +407,12 @@ class NavigationHandler:
         self.edit_message(message)
 
     @staticmethod
-    def _picture_check_replace(picture_path: str) -> Union[str, bytes]:
+    def _is_valid_sticker_format(sticker_path: str) -> bool:
+        """Check if sticker is correct file type"""
+        return sticker_path.lower().endswith('.webp')
+
+    @staticmethod
+    def _picture_check_replace(picture_path: str, is_sticker: bool = False) -> Union[str, bytes]:
         """Check if the given picture path or uri is correct, replace by default if not."""
         try:
             if validators.url(picture_path):
@@ -421,17 +426,32 @@ class NavigationHandler:
                     return file_h.read()
             raise ValueError("Path is not a picture")
         except ValueError:
-            url_default = f"{__raw_url__}/resources/stats_default.png"
+            file_type = '.webp' if is_sticker else '.png'
+            url_default = f"{__raw_url__}/resources/stats_default{file_type}"
             logger.error(f"Picture path '{picture_path}' is invalid, replacing with default {url_default}")
             return url_default
 
     def send_photo(self, picture_path: str, notification: bool = True) -> Optional[telegram.Message]:
         """Send a picture."""
-        picture_obj = self._picture_check_replace(picture_path)
+        picture_obj = self._picture_check_replace(picture_path=picture_path, is_sticker=False)
         try:
             return self._bot.send_photo(chat_id=self.chat_id, photo=picture_obj, disable_notification=not notification)
         except telegram.error.BadRequest as error:
             logger.error(f"Failed to send picture {picture_path}: {error}")
+        return None
+
+    def send_sticker(self, sticker_path: str, notification: bool = True) -> Optional[telegram.Message]:
+        """Send a picture."""
+        if not self._is_valid_sticker_format(sticker_path=sticker_path):
+            logger.warning(f"Sticker {sticker_path} is not of the correct format.")
+            return None
+        sticker_obj = self._picture_check_replace(picture_path=sticker_path, is_sticker=True)
+        try:
+            return self._bot.send_sticker(
+                chat_id=self.chat_id, sticker=sticker_obj, disable_notification=not notification
+            )
+        except telegram.error.BadRequest as error:
+            logger.error(f"Failed to send picture {sticker_path}: {error}")
         return None
 
     def get_message(self, label_message: str) -> Optional[BaseMessage]:

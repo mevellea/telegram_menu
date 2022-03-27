@@ -9,7 +9,7 @@ import logging
 import mimetypes
 import time
 from pathlib import Path
-from typing import Any, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import telegram.ext
 import validators
@@ -67,7 +67,13 @@ class TelegramMenuSession:
         dispatcher.add_handler(telegram.ext.PollAnswerHandler(self._poll_answer))
         dispatcher.add_error_handler(self._msg_error_handler)
 
-    def start(self, start_message_class: type, start_message_args: Any = None, idle: bool = False) -> None:
+    def start(
+        self,
+        start_message_class: type,
+        start_message_args: Any = None,
+        polling: bool = True,
+        idle: bool = False,
+    ) -> None:
         """Set start message and run dispatcher."""
         self.start_message_class = start_message_class
         self.start_message_args = start_message_args
@@ -78,7 +84,8 @@ class TelegramMenuSession:
 
         if not self.scheduler.running:
             self.scheduler.start()
-        self.updater.start_polling()
+        if polling:
+            self.updater.start_polling()
         if idle:
             self.updater.idle()
 

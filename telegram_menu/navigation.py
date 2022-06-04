@@ -37,6 +37,7 @@ class TelegramMenuSession:
     START_MESSAGE = "start"
 
     start_message_class: type
+    navigation_handler_class: type
 
     def __init__(self, api_key: str, start_message: str = START_MESSAGE) -> None:
         """Initialize TelegramMenuSession class."""
@@ -73,14 +74,20 @@ class TelegramMenuSession:
         start_message_args: Any = None,
         polling: bool = True,
         idle: bool = False,
+        navigation_handler_class: type = None,
     ) -> None:
         """Set start message and run dispatcher."""
         self.start_message_class = start_message_class
         self.start_message_args = start_message_args
+        self.navigation_handler_class = navigation_handler_class
         if not issubclass(start_message_class, BaseMessage):
             raise AttributeError("start_message_class must be a BaseMessage!")
         if start_message_args is not None and not isinstance(start_message_args, list):
             raise AttributeError("start_message_args is not a list!")
+        if navigation_handler_class is None:
+            self.navigation_handler_class = NavigationHandler
+        if not issubclass(self.navigation_handler_class, NavigationHandler):
+            raise AttributeError("navigation_handler_class must be a NavigationHandler!")
 
         if not self.scheduler.running:
             self.scheduler.start()
@@ -94,7 +101,9 @@ class TelegramMenuSession:
         chat = update.effective_chat
         if chat is None:
             raise AttributeError("Chat object was not created")
-        session = NavigationHandler(self._api_key, chat, self.scheduler)
+        if self.navigation_handler_class is None:
+            raise AttributeError("Navigation Handler class not defined")
+        session = self.navigation_handler_class(self._api_key, chat, self.scheduler)
         self.sessions.append(session)
         if self.start_message_class is None:
             raise AttributeError("Message class not defined")

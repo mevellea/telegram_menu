@@ -9,7 +9,7 @@ import logging
 import mimetypes
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, List, Optional, Type, Union
 
 import telegram.ext
 import validators
@@ -36,11 +36,16 @@ class TelegramMenuSession:
     CONNECT_TIMEOUT = 7
     START_MESSAGE = "start"
 
-    start_message_class: type
-    navigation_handler_class: type
-
     def __init__(self, api_key: str, start_message: str = START_MESSAGE) -> None:
-        """Initialize TelegramMenuSession class."""
+        """
+        Initialize the session object.
+
+        Parameters
+        ----------
+        api_key: Telegram bot API key
+        start_message: text used to start a session, e.g. /start
+
+        """
         if not isinstance(api_key, str):
             raise KeyError("API_KEY must be a string!")
 
@@ -59,7 +64,9 @@ class TelegramMenuSession:
 
         self._api_key = api_key
         self.sessions: List[NavigationHandler] = []
-        self.start_message_args = None
+        self.start_message_class: Optional[Type[BaseMessage]] = None
+        self.start_message_args: Optional[List[Any]] = None
+        self.navigation_handler_class: Optional[Type["NavigationHandler"]] = None
 
         # on different commands - answer in Telegram
         dispatcher.add_handler(CommandHandler(start_message, self._send_start_message))
@@ -70,22 +77,31 @@ class TelegramMenuSession:
 
     def start(
         self,
-        start_message_class: type,
-        start_message_args: Any = None,
+        start_message_class: Type[BaseMessage],
+        start_message_args: Optional[List[Any]] = None,
         polling: bool = True,
         idle: bool = False,
-        navigation_handler_class: type = None,
+        navigation_handler_class: Optional[Type["NavigationHandler"]] = None,
     ) -> None:
-        """Set start message and run dispatcher."""
+        """
+        Set the start message and run the dispatcher.
+
+        Parameters
+        ----------
+        start_message_class: class used to create start message
+        start_message_args: optional arguments passed to the start class
+        polling: if True, start polling updates from Telegram
+        idle: if True, blocks until one of the signals are received and stops the updater
+        navigation_handler_class: optional class used to extend the base NavigationHandler
+
+        """
         self.start_message_class = start_message_class
         self.start_message_args = start_message_args
-        self.navigation_handler_class = navigation_handler_class
+        self.navigation_handler_class = navigation_handler_class or NavigationHandler
         if not issubclass(start_message_class, BaseMessage):
             raise AttributeError("start_message_class must be a BaseMessage!")
         if start_message_args is not None and not isinstance(start_message_args, list):
             raise AttributeError("start_message_args is not a list!")
-        if navigation_handler_class is None:
-            self.navigation_handler_class = NavigationHandler
         if not issubclass(self.navigation_handler_class, NavigationHandler):
             raise AttributeError("navigation_handler_class must be a NavigationHandler!")
 
@@ -108,7 +124,7 @@ class TelegramMenuSession:
         if self.start_message_class is None:
             raise AttributeError("Message class not defined")
         if self.start_message_args is not None:
-            start_message = self.start_message_class(session, self.start_message_args)
+            start_message = self.start_message_class(session, message_args=self.start_message_args)
         else:
             start_message = self.start_message_class(session)
         session.goto_menu(start_message)

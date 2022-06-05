@@ -38,14 +38,17 @@ class ButtonType(Enum):
 
 @dataclass
 class MenuButton:
-    """Base button class, wrapper for label with callback.
+    """
+    Base button class, wrapper for label with callback.
 
-    Args:
-        label: button label
-        callback: method called on button selection
-        btype: button type
-        args: argument passed to the callback
-        notification: send notification to user
+    Parameters
+    ----------
+    label: button label
+    callback: method called on button selection
+    btype: button type
+    args: argument passed to the callback
+    notification: send notification to user
+
     """
 
     def __init__(
@@ -65,15 +68,18 @@ class MenuButton:
 
 
 class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
-    """Base message class, buttons array and label updater.
+    """
+    Base message class, buttons array and label updater.
 
-    Args:
-        navigation: navigation manager
-        label: message label
-        expiry_period: duration before the message is deleted
-        inlined: create an inlined message instead of a menu message
-        home_after: go back to home menu after executing the action
-        notification: show a notification in Telegram interface
+    Parameters
+    ----------
+    navigation: navigation manager
+    label: message label
+    expiry_period: duration before the message is deleted
+    inlined: create an inlined message instead of a menu message
+    home_after: go back to home menu after executing the action
+    notification: show a notification in Telegram interface
+
     """
 
     EXPIRING_DELAY = 12  # minutes
@@ -83,12 +89,13 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
     def __init__(
         self,
         navigation: "NavigationHandler",
-        label: str,
+        label: str = "",
         expiry_period: Optional[datetime.timedelta] = None,
         inlined: bool = False,
         home_after: bool = False,
         notification: bool = True,
         input_field: str = "",
+        **args: Any,
     ) -> None:
         """Init BaseMessage class."""
         self.keyboard: TypeKeyboard = [[]]
@@ -116,31 +123,43 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
 
     @abstractmethod
     def update(self) -> str:
-        """Update message content.
+        """
+        Update message content.
 
-        Returns:
-            Message content formatted with HTML formatting.
+        Returns
+        -------
+        Message content formatted with HTML formatting.
+
         """
         raise NotImplementedError
 
     def text_input(self, text: str) -> None:
-        """Receive text from console.
+        """
+        Receive text from console.
 
         If used, this function must be instantiated in the child class.
 
-        Args:
-            text: text received
+        Parameters
+        ----------
+        text: text received from console
         """
 
     def get_button(self, label: str) -> Optional[MenuButton]:
-        """Get button matching given label.
+        """
+        Get button matching given label.
 
-        Args:
-            label: message label
-        Returns:
-            button matching label
-        Raises:
-            EnvironmentError: too many buttons matching label
+        Parameters
+        ----------
+        label: message label
+
+        Returns
+        -------
+        Button matching label
+
+        Raises
+        ------
+        EnvironmentError: too many buttons matching label
+
         """
         return next(iter(y for x in self.keyboard for y in x if y.label == label), None)
 
@@ -161,15 +180,18 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
         notification: bool = True,
         new_row: bool = False,
     ) -> None:
-        """Add a button to keyboard attribute.
+        """
+        Add a button to keyboard attribute.
 
-        Args:
-            label: button label
-            callback: method called on button selection
-            btype: button type
-            args: argument passed to the callback
-            notification: send notification to user
-            new_row: add a new row
+        Parameters
+        ----------
+        label: button label
+        callback: method called on button selection
+        btype: button type
+        args: argument passed to the callback
+        notification: send notification to user
+        new_row: add a new row
+
         """
         # arrange buttons per row, depending on inlined property
         buttons_per_row = 2 if not self.inlined else 4
@@ -184,22 +206,11 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
             self.keyboard[-1].append(MenuButton(label, callback, btype, args, notification))
 
     def edit_message(self) -> bool:
-        """Request navigation controller to update current message.
-
-        Returns:
-            True if message was edited
-        """
+        """Request navigation controller to update current message."""
         return self.navigation.edit_message(self)
 
     def gen_keyboard_content(self, inlined: Optional[bool] = None) -> Union[ReplyKeyboardMarkup, InlineKeyboardMarkup]:
-        """Generate keyboard.
-
-        Args:
-            inlined: inlined keyboard
-
-        Returns:
-            Generated keyboard
-        """
+        """Generate keyboard content."""
         if inlined is None:
             inlined = self.inlined
         keyboard_buttons = []

@@ -7,7 +7,7 @@ import logging
 import time
 import unittest
 from pathlib import Path
-from typing import Any, List, Optional, Union
+from typing import Any, Callable, List, Optional, Union
 
 import telegram
 
@@ -20,6 +20,7 @@ from telegram_menu import BaseMessage, ButtonType, MenuButton, NavigationHandler
 from telegram_menu._version import __raw_url__
 
 KeyboardContent = List[Union[str, List[str]]]
+UpdateCallback = Callable[[Any], None]
 KeyboardTester = TypedDict("KeyboardTester", {"buttons": int, "output": List[int]})
 
 ROOT_FOLDER = Path(__file__).parent.parent
@@ -28,17 +29,25 @@ UnitTestDict = TypedDict("UnitTestDict", {"description": str, "input": str, "out
 TypePackageLogger = TypedDict("TypePackageLogger", {"package": str, "level": int})
 
 
+class MyNavigationHandler(NavigationHandler):
+    """Example of navigation handler, extended with a custom "Back" command."""
+
+    def goto_back(self) -> int:
+        """Do Go Back logic."""
+        return self.select_menu_button("Back")
+
+
 class OptionsAppMessage(BaseMessage):
     """Options app message, show an example of a button with inline buttons."""
 
     LABEL = "options"
 
-    def __init__(self, navigation: NavigationHandler, update_callback: Optional[List[Any]] = None) -> None:
+    def __init__(self, navigation: MyNavigationHandler, update_callback: Optional[List[UpdateCallback]] = None) -> None:
         """Init OptionsAppMessage class."""
         super().__init__(navigation, OptionsAppMessage.LABEL, inlined=True)
 
         self.play_pause = True
-        if update_callback:
+        if isinstance(update_callback, list):
             update_callback.append(self.app_update_display)
 
     def app_update_display(self) -> None:
@@ -115,7 +124,7 @@ class ActionAppMessage(BaseMessage):
 
     LABEL = "action"
 
-    def __init__(self, navigation: NavigationHandler) -> None:
+    def __init__(self, navigation: MyNavigationHandler) -> None:
         """Init ActionAppMessage class."""
         super().__init__(
             navigation,
@@ -137,7 +146,7 @@ class ThirdMenuMessage(BaseMessage):
 
     LABEL = "third_message"
 
-    def __init__(self, navigation: NavigationHandler, update_callback: Optional[List[Any]] = None) -> None:
+    def __init__(self, navigation: MyNavigationHandler, update_callback: Optional[List[UpdateCallback]] = None) -> None:
         """Init ThirdMenuMessage class."""
         super().__init__(
             navigation,
@@ -147,11 +156,12 @@ class ThirdMenuMessage(BaseMessage):
             input_field="<disable>",  # use '<disable>' to leave the input field empty
         )
 
-        self.action_message = ActionAppMessage(self.navigation)
-        option_message = OptionsAppMessage(self.navigation, update_callback)
+        self.action_message = ActionAppMessage(navigation)
+        option_message = OptionsAppMessage(navigation, update_callback)
         self.add_button(label="Option", callback=option_message)
         self.add_button("Action", self.action_message)
         self.add_button_back()
+        self.add_button("Back2", callback=navigation.goto_back)
         self.add_button_home()
         if update_callback:
             update_callback.append(self.app_update_display)
@@ -170,7 +180,6 @@ class ThirdMenuMessage(BaseMessage):
         """Process text received."""
         msg_id = self.navigation.select_menu_button("Action")
         self.navigation.delete_message(message_id=msg_id)
-        print(id)
 
 
 class SecondMenuMessage(BaseMessage):
@@ -178,7 +187,7 @@ class SecondMenuMessage(BaseMessage):
 
     LABEL = "second_message"
 
-    def __init__(self, navigation: NavigationHandler, update_callback: Optional[List[Any]] = None) -> None:
+    def __init__(self, navigation: MyNavigationHandler, update_callback: Optional[List[UpdateCallback]] = None) -> None:
         """Init SecondMenuMessage class."""
         super().__init__(
             navigation,
@@ -203,13 +212,13 @@ class StartMessage(BaseMessage):
 
     LABEL = "start"
 
-    def __init__(self, navigation: NavigationHandler, update_callback: Optional[List[Any]] = None) -> None:
+    def __init__(self, navigation: MyNavigationHandler, message_args: Optional[List[UpdateCallback]] = None) -> None:
         """Init StartMessage class."""
         super().__init__(navigation, StartMessage.LABEL)
 
         # define menu buttons
         action_message = ActionAppMessage(navigation)
-        second_menu = SecondMenuMessage(navigation, update_callback)
+        second_menu = SecondMenuMessage(navigation, update_callback=message_args)
         self.add_button(label="Action", callback=action_message)
         self.add_button(label="Second menu", callback=second_menu)
 
@@ -227,8 +236,8 @@ class Test(unittest.TestCase):
     """The basic class that inherits unittest.TestCase."""
 
     session: TelegramMenuSession
-    navigation: NavigationHandler
-    update_callback: List[Any] = []
+    navigation: MyNavigationHandler
+    update_callback: List[UpdateCallback] = []
 
     def setUp(self) -> None:
         """Initialize the test session, create the telegram instance if it does not exist."""
@@ -241,7 +250,11 @@ class Test(unittest.TestCase):
 
             # create the session with the start message, 'update_callback' is used to testing purpose only here.
             Test.session.start(
-                start_message_class=StartMessage, start_message_args=Test.update_callback, polling=True, idle=False
+                start_message_class=StartMessage,
+                start_message_args=Test.update_callback,
+                polling=True,
+                idle=False,
+                navigation_handler_class=MyNavigationHandler,
             )
 
             print("\n### Waiting for a manual request to start the Telegram session...\n")

@@ -15,8 +15,8 @@ Features:
 
 Here is an example of navigation with menus and inlined buttons:
 
-![Demo: TelegramMenuSession]
-
+![Demo: TelegramMenuSession]  
+You can view the source code for this demo in `tests\test_connection.py`
 ## Installation
 
 ```bash

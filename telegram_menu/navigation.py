@@ -551,10 +551,8 @@ class NavigationHandler:
             logger.error("Poll is not defined")
             return
 
-        logger.info(
-            f"{self.user_name}'s answer to question '{self._poll.poll.question}' is "
-            f"'{self._poll.poll.options[answer_id].text}'"
-        )
+        answer_ascii = self._poll.poll.options[answer_id].text.encode("ascii", "ignore").decode()
+        logger.info(f"{self.user_name}'s answer to question '{self._poll.poll.question}' is '{answer_ascii}'")
         self._poll_callback(self._poll.poll.options[answer_id].text)
         time.sleep(1)
         self.poll_delete()

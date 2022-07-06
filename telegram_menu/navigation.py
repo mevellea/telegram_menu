@@ -71,6 +71,7 @@ class TelegramMenuSession:
         # on different commands - answer in Telegram
         dispatcher.add_handler(CommandHandler(start_message, self._send_start_message))
         dispatcher.add_handler(MessageHandler(telegram.ext.Filters.text, self._button_select_callback))
+        dispatcher.add_handler(MessageHandler(telegram.ext.Filters.status_update.web_app_data, self._web_app_callback))
         dispatcher.add_handler(CallbackQueryHandler(self._button_inline_select_callback))
         dispatcher.add_handler(telegram.ext.PollAnswerHandler(self._poll_answer))
         dispatcher.add_error_handler(self._msg_error_handler)
@@ -135,6 +136,18 @@ class TelegramMenuSession:
         if not sessions:
             return None
         return sessions[0]
+
+    def _web_app_callback(self, update: Update, context: Any) -> None:
+        """Execute the callback with the result returned by the webapp."""
+        if update.effective_chat is None or update.effective_message is None:
+            raise AttributeError("Object was not created")
+        session = self.get_session(update.effective_chat.id)
+        if session is None:
+            self._send_start_message(update, context)
+            return
+        session.app_message_webapp_callback(
+            update.effective_message.web_app_data.data, update.effective_message.web_app_data.button_text
+        )
 
     def _button_select_callback(self, update: Update, context: CallbackContext) -> None:  # type: ignore
         """Menu message main entry point."""
@@ -400,6 +413,14 @@ class NavigationHandler:
             if last_app_message.time_alive > last_menu_message.time_alive:
                 last_menu_message = last_app_message
         last_menu_message.text_input(label)
+
+    def app_message_webapp_callback(self, webapp_data: str, button_text: str) -> None:
+        """Execute the callback associated to this webapp."""
+        last_menu = self._menu_queue[-1]
+        webapp_message = next(iter(y for x in last_menu.keyboard for y in x if y.label == button_text), None)
+        if webapp_message is not None and callable(webapp_message.callback):
+            html_response = webapp_message.callback(webapp_data)
+            self.send_message(html_response, notification=webapp_message.notification)
 
     def app_message_button_callback(self, callback_label: str, callback_id: str) -> None:
         """Entry point to execute an action after message button selection."""

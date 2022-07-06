@@ -14,7 +14,8 @@ from typing import TYPE_CHECKING, Any, Callable, List, Optional, Union
 
 import emoji
 import telegram
-from telegram import InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
+import validators
+from telegram import InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup, WebAppInfo
 
 if TYPE_CHECKING:
     from telegram_menu import NavigationHandler
@@ -58,6 +59,7 @@ class MenuButton:
         btype: ButtonType = ButtonType.NOTIFICATION,
         args: Any = None,
         notification: bool = True,
+        web_app_url: str = "",
     ):
         """Init MenuButton class."""
         self.label = emoji_replace(label)
@@ -65,6 +67,7 @@ class MenuButton:
         self.btype = btype
         self.args = args
         self.notification = notification
+        self.web_app_url = web_app_url
 
 
 class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
@@ -179,6 +182,7 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
         args: Any = None,
         notification: bool = True,
         new_row: bool = False,
+        web_app_url: str = "",
     ) -> None:
         """
         Add a button to keyboard attribute.
@@ -201,9 +205,9 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
 
         # add new row if last row is full or append to last row
         if new_row or len(self.keyboard[-1]) == buttons_per_row:
-            self.keyboard.append([MenuButton(label, callback, btype, args, notification)])
+            self.keyboard.append([MenuButton(label, callback, btype, args, notification, web_app_url)])
         else:
-            self.keyboard[-1].append(MenuButton(label, callback, btype, args, notification))
+            self.keyboard[-1].append(MenuButton(label, callback, btype, args, notification, web_app_url))
 
     def edit_message(self) -> bool:
         """Request navigation controller to update current message."""
@@ -218,7 +222,19 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
         for row in self.keyboard:
             if not self.input_field and row:
                 self.input_field = row[0].label
-            keyboard_buttons.append([button_object(text=x.label, callback_data=f"{self.label}.{x.label}") for x in row])
+            button_array = []
+            for btn in row:
+                if btn.web_app_url and validators.url(btn.web_app_url):
+                    button_array.append(
+                        button_object(
+                            text=btn.label,
+                            web_app=WebAppInfo(url=btn.web_app_url),
+                            callback_data=f"{self.label}.{btn.label}",
+                        )
+                    )
+                else:
+                    button_array.append(button_object(text=btn.label, callback_data=f"{self.label}.{btn.label}"))
+            keyboard_buttons.append(button_array)
         if inlined:
             return InlineKeyboardMarkup(inline_keyboard=keyboard_buttons, resize_keyboard=False)
         if self.input_field and self.input_field != "<disable>":

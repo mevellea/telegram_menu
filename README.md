@@ -7,7 +7,7 @@ A python library to generate navigation menus using Telegram Bot API.
 Features:
 
 * Menu navigation using tree structure, unlimited depth
-* Support for sending pictures (local file or url), stickers, notifications, and polls
+* Support for sending pictures (local file or url), stickers, notifications, webapps and polls
 * Session manager with multiple users connecting to the same bot
 * Messages can read text input from the keyboard
 * Automatic deletion of messages when configurable timer has expired
@@ -16,7 +16,7 @@ Features:
 Here is an example of navigation with menus and inlined buttons:
 
 ![Demo: TelegramMenuSession]  
-You can view the source code for this demo in `tests\test_connection.py`
+
 ## Installation
 
 ```bash
@@ -105,11 +105,18 @@ to create a new row the property ``new_row`` can be set to ``True`` when calling
 ```python
 from telegram_menu import MenuButton
 
-# 'get_content' function must return the text content to display, eventually with markdown formatting
+# 'get_content' function must return the text content to display, eventually with Markdown formatting
 self.add_button(label="Display content", callback=self.get_content, btype=ButtonType.MESSAGE)
 
 # 'get_picture' function must return the path of a picture to display in Telegram
 self.add_button(label="Show picture", callback=self.get_picture, btype=ButtonType.PICTURE, new_row=True)
+
+# 'get_sticker' function must return the path of a sticker to display in Telegram
+self.add_button(label="Show sticker", callback=self.get_sticker, btype=ButtonType.STICKER)
+
+# 'webapp_cb' function will receive the result of the given web-app
+webapp_url = "https://python-telegram-bot.org/static/webappbot"
+self.add_button(label="Show picture", callback=self.webapp_cb, web_app_url=webapp_url)
 
 # New buttons can be added to the 'keyboard' property of the message instance too.
 # Next poll message will get items to display from function 'get_playlists_arg', and run 'select_playlist' when 

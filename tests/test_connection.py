@@ -3,6 +3,7 @@
 """Test telegram_menu package."""
 
 import datetime
+import json
 import logging
 import time
 import unittest
@@ -211,6 +212,7 @@ class StartMessage(BaseMessage):
     """Start menu, create all app sub-menus."""
 
     LABEL = "start"
+    URL = "https://python-telegram-bot.org/static/webappbot"
 
     def __init__(self, navigation: MyNavigationHandler, message_args: Optional[List[UpdateCallback]] = None) -> None:
         """Init StartMessage class."""
@@ -221,6 +223,14 @@ class StartMessage(BaseMessage):
         second_menu = SecondMenuMessage(navigation, update_callback=message_args)
         self.add_button(label="Action", callback=action_message)
         self.add_button(label="Second menu", callback=second_menu)
+        self.add_button(label="webapp", callback=self.webapp_cb, web_app_url=self.URL)
+
+    def webapp_cb(self, webapp_data):
+        data = json.loads(webapp_data)
+        return (
+            f"You selected the color with the HEX value <code>{data['hex']}</code>. "
+            f"The corresponding RGB value is <code>{tuple(data['rgb'].values())}</code>."
+        )
 
     @staticmethod
     def run_and_notify() -> str:

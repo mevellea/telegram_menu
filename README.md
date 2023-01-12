@@ -13,6 +13,8 @@ Features:
 * Automatic deletion of messages when configurable timer has expired
 * Integration of HTML formatting + emojis
 
+> **_[2023-01] NOTE:_** asyncio support was added in version 2.0.0. Previous versions use the oldest non-asynchronous version of python-telegram-bot and are not compatible.
+
 Here is an example of navigation with menus and inlined buttons:
 
 ![Demo: TelegramMenuSession]  

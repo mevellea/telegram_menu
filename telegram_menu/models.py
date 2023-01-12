@@ -10,12 +10,11 @@ import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import TYPE_CHECKING, Any, Callable, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Coroutine, List, Optional, Union
 
 import emoji
-import telegram
 import validators
-from telegram import InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup, WebAppInfo
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup, WebAppInfo
 
 if TYPE_CHECKING:
     from telegram_menu import NavigationHandler
@@ -23,7 +22,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-TypeCallback = Optional[Union[Callable[..., Any], "BaseMessage"]]
+TypeCallback = Optional[Union[Callable[..., Any], Coroutine[Any, Any, None], "BaseMessage"]]
 TypeKeyboard = List[List["MenuButton"]]
 
 
@@ -136,7 +135,7 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
         """
         raise NotImplementedError
 
-    def text_input(self, text: str) -> None:
+    async def text_input(self, text: str) -> None:
         """
         Receive text from console.
 
@@ -195,6 +194,7 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
         args: argument passed to the callback
         notification: send notification to user
         new_row: add a new row
+        web_app_url: URL of the web-app
 
         """
         # arrange buttons per row, depending on inlined property
@@ -209,39 +209,46 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
         else:
             self.keyboard[-1].append(MenuButton(label, callback, btype, args, notification, web_app_url))
 
-    def edit_message(self) -> bool:
+    async def edit_message(self) -> bool:
         """Request navigation controller to update current message."""
-        return self.navigation.edit_message(self)
+        return await self.navigation.edit_message(self)
 
-    def gen_keyboard_content(self, inlined: Optional[bool] = None) -> Union[ReplyKeyboardMarkup, InlineKeyboardMarkup]:
+    def gen_keyboard_content(self) -> ReplyKeyboardMarkup:
         """Generate keyboard content."""
-        if inlined is None:
-            inlined = self.inlined
         keyboard_buttons = []
-        button_object = telegram.InlineKeyboardButton if inlined else KeyboardButton
         for row in self.keyboard:
             if not self.input_field and row:
                 self.input_field = row[0].label
-            button_array = []
+            button_array: List[KeyboardButton] = []
             for btn in row:
                 if btn.web_app_url and validators.url(btn.web_app_url):
-                    button_array.append(
-                        button_object(
-                            text=btn.label,
-                            web_app=WebAppInfo(url=btn.web_app_url),
-                            callback_data=f"{self.label}.{btn.label}",
-                        )
-                    )
+                    button_array.append(KeyboardButton(text=btn.label, web_app=WebAppInfo(url=btn.web_app_url)))
                 else:
-                    button_array.append(button_object(text=btn.label, callback_data=f"{self.label}.{btn.label}"))
+                    button_array.append(KeyboardButton(text=btn.label))
             keyboard_buttons.append(button_array)
-        if inlined:
-            return InlineKeyboardMarkup(inline_keyboard=keyboard_buttons, resize_keyboard=False)
         if self.input_field and self.input_field != "<disable>":
             return ReplyKeyboardMarkup(
                 keyboard=keyboard_buttons, resize_keyboard=True, input_field_placeholder=self.input_field
             )
         return ReplyKeyboardMarkup(keyboard=keyboard_buttons, resize_keyboard=True)
+
+    def gen_inline_keyboard_content(self) -> InlineKeyboardMarkup:
+        """Generate keyboard content."""
+        keyboard_buttons = []
+        for row in self.keyboard:
+            if not self.input_field and row:
+                self.input_field = row[0].label
+            button_array: List[InlineKeyboardButton] = []
+            for btn in row:
+                lbl = f"{self.label}.{btn.label}"
+                if btn.web_app_url and validators.url(btn.web_app_url):
+                    button_array.append(
+                        InlineKeyboardButton(text=btn.label, web_app=WebAppInfo(url=btn.web_app_url), callback_data=lbl)
+                    )
+                else:
+                    button_array.append(InlineKeyboardButton(text=btn.label, callback_data=lbl))
+            keyboard_buttons.append(button_array)
+        return InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
 
     def is_alive(self) -> None:
         """Update message timestamp."""
@@ -262,6 +269,6 @@ def emoji_replace(label: str) -> str:
     """Replace emoji token with utf-16 code."""
     match_emoji = re.findall(r"(:\w+:)", label)
     for item in match_emoji:
-        emoji_str = emoji.emojize(item, use_aliases=True)
+        emoji_str = emoji.emojize(item, language="alias")  # pylint: disable=unexpected-keyword-arg
         label = label.replace(item, emoji_str)
     return label

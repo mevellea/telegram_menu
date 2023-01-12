@@ -1,3 +1,4 @@
-emoji>=1.6.1
-python-telegram-bot==13.13
+APScheduler>=3.0.0
+emoji>=2.0.0
+python-telegram-bot==20.0
 validators

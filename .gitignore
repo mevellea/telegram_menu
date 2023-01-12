@@ -13,3 +13,4 @@ coverage.json
 docs/_build
 dist/*.tar.gz
 reports/*.txt
+tests/arbitrarycallbackdatabot

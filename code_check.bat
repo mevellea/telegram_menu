@@ -6,13 +6,13 @@ call %VENV_PATH%\Scripts\activate.bat
 python -m pip install -U pip
 pip install -r requirements-develop.txt
 
-echo ### Call black
-black . -l 120
-@if errorlevel 1 echo "<<<### BLACK FAILED #################################################################>>>"
-
 echo ### Call isort
 isort -l 120 .
 @if errorlevel 1 echo "<<<### ISORT ERROR DETECTED ####################################################>>>"
+
+echo ### Call black
+black . -l 120
+@if errorlevel 1 echo "<<<### BLACK FAILED #################################################################>>>"
 
 echo ### Call mypy
 if not exist reports mkdir reports
@@ -30,3 +30,7 @@ pydocstyle . > %CD%\reports\pydocstyle.txt
 echo ### Call pycodestyle
 pycodestyle --max-line-length=120 .
 @if errorlevel 1 echo "<<<### PYCODESTYLE ERROR DETECTED ####################################################>>>"
+
+echo ### Call flake8
+flake8 --max-line-length 120 .
+@if errorlevel 1 echo "<<<### FLAKE8 ERROR DETECTED ####################################################>>>"

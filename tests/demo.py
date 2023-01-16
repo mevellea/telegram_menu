@@ -16,9 +16,7 @@ def run() -> None:
         api_key = key_h.read().strip()
 
     logging.info(" >> Start the demo and wait forever, quit with CTRL+C...")
-    TelegramMenuSession(api_key).start(
-        start_message_class=StartMessage, navigation_handler_class=MyNavigationHandler, idle=True
-    )
+    TelegramMenuSession(api_key).start(start_message_class=StartMessage, navigation_handler_class=MyNavigationHandler)
 
 
 if __name__ == "__main__":

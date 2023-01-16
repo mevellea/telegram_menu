@@ -1,27 +1,27 @@
 #!/usr/bin/env python3
 
 """Test telegram_menu package."""
-
+import asyncio
 import datetime
 import json
 import logging
-import time
 import unittest
 from pathlib import Path
-from typing import Any, Callable, List, Optional, Union
+from typing import Any, Callable, Coroutine, List, Optional, Union
 
-import telegram
+from telegram import InlineKeyboardMarkup, Message, ReplyKeyboardMarkup
 
 try:
     from typing_extensions import TypedDict
 except ImportError:
     from typing import TypedDict
 
+import telegram_menu
 from telegram_menu import BaseMessage, ButtonType, MenuButton, NavigationHandler, TelegramMenuSession
 from telegram_menu._version import __raw_url__
 
 KeyboardContent = List[Union[str, List[str]]]
-UpdateCallback = Callable[[Any], None]
+UpdateCallback = Union[Callable[[Any], None], Coroutine[Any, Any, None]]
 KeyboardTester = TypedDict("KeyboardTester", {"buttons": int, "output": List[int]})
 
 ROOT_FOLDER = Path(__file__).parent.parent
@@ -33,9 +33,9 @@ TypePackageLogger = TypedDict("TypePackageLogger", {"package": str, "level": int
 class MyNavigationHandler(NavigationHandler):
     """Example of navigation handler, extended with a custom "Back" command."""
 
-    def goto_back(self) -> int:
+    async def goto_back(self) -> int:
         """Do Go Back logic."""
-        return self.select_menu_button("Back")
+        return await self.select_menu_button("Back")
 
 
 class OptionsAppMessage(BaseMessage):
@@ -51,10 +51,10 @@ class OptionsAppMessage(BaseMessage):
         if isinstance(update_callback, list):
             update_callback.append(self.app_update_display)
 
-    def app_update_display(self) -> None:
+    async def app_update_display(self) -> None:
         """Update message content when callback triggered."""
         self._toggle_play_button()
-        if self.edit_message():
+        if await self.edit_message():
             self.is_alive()
 
     def kill_message(self) -> None:
@@ -99,7 +99,7 @@ class OptionsAppMessage(BaseMessage):
     @staticmethod
     def action_poll(poll_answer: str) -> None:
         """Display poll answer."""
-        logging.info(f"Answer is {poll_answer}")
+        logging.info(f"Answer is {poll_answer}")  # pylint: disable=logging-fstring-interpolation
 
     def update(self) -> str:
         """Update message content."""
@@ -167,9 +167,9 @@ class ThirdMenuMessage(BaseMessage):
         if update_callback:
             update_callback.append(self.app_update_display)
 
-    def app_update_display(self) -> None:
+    async def app_update_display(self) -> None:
         """Update message content when callback triggered."""
-        edited = self.edit_message()
+        edited = await self.edit_message()
         if edited:
             self.is_alive()
 
@@ -177,10 +177,10 @@ class ThirdMenuMessage(BaseMessage):
         """Update message content."""
         return "Third message"
 
-    def text_input(self, text: str) -> None:
+    async def text_input(self, text: str) -> None:
         """Process text received."""
-        msg_id = self.navigation.select_menu_button("Action")
-        self.navigation.delete_message(message_id=msg_id)
+        msg_id = await self.navigation.select_menu_button("Action")
+        await self.navigation.delete_message(message_id=msg_id)
 
 
 class SecondMenuMessage(BaseMessage):
@@ -225,7 +225,9 @@ class StartMessage(BaseMessage):
         self.add_button(label="Second menu", callback=second_menu)
         self.add_button(label="webapp", callback=self.webapp_cb, web_app_url=self.URL)
 
-    def webapp_cb(self, webapp_data):
+    @staticmethod
+    async def webapp_cb(webapp_data):
+        """Webapp callback."""
         data = json.loads(webapp_data)
         return (
             f"You selected the color with the HEX value <code>{data['hex']}</code>. "
@@ -250,31 +252,40 @@ class Test(unittest.TestCase):
     update_callback: List[UpdateCallback] = []
 
     def setUp(self) -> None:
-        """Initialize the test session, create the telegram instance if it does not exist."""
+        """Set-up the unit-test."""
+        init_logger()
         with (Path.home() / ".telegram_menu" / "key.txt").open() as key_h:
             self.api_key = key_h.read().strip()
+        Test.session = TelegramMenuSession(api_key=self.api_key)
 
-        if not hasattr(Test, "session"):
-            init_logger()
-            Test.session = TelegramMenuSession(api_key=self.api_key)
+    def test_all(self):
+        """Create the session, tests start once the client has opened the session."""
+        asyncio.ensure_future(self.get_session(), loop=asyncio.get_event_loop())
+        Test.session.start(StartMessage, Test.update_callback, navigation_handler_class=MyNavigationHandler)
 
-            # create the session with the start message, 'update_callback' is used to testing purpose only here.
-            Test.session.start(
-                start_message_class=StartMessage,
-                start_message_args=Test.update_callback,
-                polling=True,
-                idle=False,
-                navigation_handler_class=MyNavigationHandler,
-            )
+    async def get_session(self):
+        """Get the session."""
+        print("\n### Waiting for a manual request to start the Telegram session...\n")
+        while not hasattr(Test, "navigation") or Test.navigation is None:
+            nav = Test.session.get_session()
+            if nav is not None:
+                Test.navigation = nav
+            else:
+                await asyncio.sleep(1)
+        await self.run_all()
+        asyncio.get_event_loop().stop()
 
-            print("\n### Waiting for a manual request to start the Telegram session...\n")
-            while not hasattr(Test, "navigation") or Test.navigation is None:
-                nav = Test.session.get_session()
-                if nav is not None:
-                    Test.navigation = nav
-                time.sleep(1)
+    async def run_all(self):
+        """Run all unit-tests."""
+        self._test_1_wrong_api_key()
+        self._test_2_label_emoji()
+        self._test_3_bad_start_message()
+        await self._test_4_picture_path()
+        self._test_5_keyboard_combinations()
+        self._test_6_keyboard_combinations_inlined()
+        await self._test_7_client_connection()
 
-    def test_1_wrong_api_key(self) -> None:
+    def _test_1_wrong_api_key(self) -> None:
         """Test starting a client with wrong key."""
         with self.assertRaises(KeyError):
             TelegramMenuSession(None)  # type: ignore
@@ -282,10 +293,7 @@ class Test(unittest.TestCase):
         with self.assertRaises(KeyError):
             TelegramMenuSession(1234)  # type: ignore
 
-        with self.assertRaises(AttributeError):
-            TelegramMenuSession("1234:5678")
-
-    def test_2_label_emoji(self) -> None:
+    def _test_2_label_emoji(self) -> None:
         """Check replacement of emoji."""
         vectors: List[UnitTestDict] = [
             {"description": "No emoji", "input": "lbl", "output": "lbl"},
@@ -299,19 +307,18 @@ class Test(unittest.TestCase):
             button = MenuButton(label=vector["input"])
             self.assertEqual(button.label, vector["output"], vector["description"])
 
-    def test_3_bad_start_message(self) -> None:
+    # noinspection PyTypeChecker
+    def _test_3_bad_start_message(self) -> None:
         """Test starting a client with bad start message."""
         manager = TelegramMenuSession(self.api_key)
 
-        with self.assertRaises(AttributeError):
+        with self.assertRaises(telegram_menu.NavigationException):
             manager.start(MenuButton)
 
-        with self.assertRaises(AttributeError):
+        with self.assertRaises(telegram_menu.NavigationException):
             manager.start(StartMessage, 1)
 
-        manager.updater.stop()
-
-    def test_4_picture_path(self) -> None:
+    async def _test_4_picture_path(self) -> None:
         """Test sending valid and invalid pictures."""
         if Test.session is None:
             self.fail("Telegram session not available")
@@ -322,10 +329,10 @@ class Test(unittest.TestCase):
             (ROOT_FOLDER / "setup.py").resolve().as_posix(),
         ]
         for vector in vectors_local:
-            messages = Test.session.broadcast_picture(vector)
+            messages = await Test.session.broadcast_picture(vector)
             self.assertIsInstance(messages, List)
             self.assertEqual(len(messages), 1)
-            self.assertIsInstance(messages[0], telegram.Message)
+            self.assertIsInstance(messages[0], Message)
 
         # test sending remote urls, valid and invalid
         vectors_urls: List[str] = [
@@ -333,20 +340,20 @@ class Test(unittest.TestCase):
             f"{__raw_url__}/setup.py",
         ]
         for vector in vectors_urls:
-            messages = Test.session.broadcast_picture(vector)
+            messages = await Test.session.broadcast_picture(vector)
             self.assertIsInstance(messages, List)
             self.assertEqual(len(messages), 1)
-            self.assertIsInstance(messages[0], telegram.Message)
+            self.assertIsInstance(messages[0], Message)
 
         sticker_path = (ROOT_FOLDER / "resources" / "stats_default.webp").resolve().as_posix()
-        messages = Test.session.broadcast_sticker(sticker_path=sticker_path)
+        messages = await Test.session.broadcast_sticker(sticker_path=sticker_path)
         self.assertIsInstance(messages, List)
         self.assertEqual(len(messages), 1)
-        self.assertIsInstance(messages[0], telegram.Message)
+        self.assertIsInstance(messages[0], Message)
 
-    def test_5_keyboard_combinations(self) -> None:
+    def _test_5_keyboard_combinations(self) -> None:
         """Run the client test."""
-        if Test.session is None or Test.navigation is None:
+        if Test.session is None:
             self.fail("Telegram session not available")
         vectors_inlined: List[KeyboardTester] = [
             {"buttons": 2, "output": [2]},
@@ -356,14 +363,17 @@ class Test(unittest.TestCase):
         for vector in vectors_inlined:
             msg_test = StartMessage(Test.navigation)
             msg_test.keyboard = []
-            for x in range(vector["buttons"]):
-                msg_test.add_button(label=str(x), callback=StartMessage.run_and_notify)
-            content = msg_test.gen_keyboard_content()
-            self.assertTrue(isinstance(content, telegram.ReplyKeyboardMarkup))
-            if isinstance(content, telegram.ReplyKeyboardMarkup):
+            for _ in range(vector["buttons"]):
+                msg_test.add_button(label=str(_), callback=StartMessage.run_and_notify)
+            if msg_test.inlined:
+                content = msg_test.gen_inline_keyboard_content()
+            else:
+                content = msg_test.gen_keyboard_content()
+            self.assertTrue(isinstance(content, ReplyKeyboardMarkup))
+            if isinstance(content, ReplyKeyboardMarkup):
                 self.assertEqual([len(x) for x in content.keyboard], vector["output"], str(vector["buttons"]))
 
-    def test_5_keyboard_combinations_inlined(self) -> None:
+    def _test_6_keyboard_combinations_inlined(self) -> None:
         """Run the client test."""
         if Test.session is None or Test.navigation is None:
             self.fail("Telegram session not available")
@@ -375,74 +385,78 @@ class Test(unittest.TestCase):
         for vector in vectors_inlined:
             msg_test = ActionAppMessage(Test.navigation)
             msg_test.keyboard = []
-            for x in range(vector["buttons"]):
-                msg_test.add_button(label=str(x), callback=StartMessage.run_and_notify)
-            content = msg_test.gen_keyboard_content()
-            self.assertTrue(isinstance(content, telegram.InlineKeyboardMarkup))
-            if isinstance(content, telegram.InlineKeyboardMarkup):
+            for _ in range(vector["buttons"]):
+                msg_test.add_button(label=str(_), callback=StartMessage.run_and_notify)
+            if msg_test.inlined:
+                content = msg_test.gen_inline_keyboard_content()
+            else:
+                content = msg_test.gen_keyboard_content()
+            self.assertTrue(isinstance(content, InlineKeyboardMarkup))
+            if isinstance(content, InlineKeyboardMarkup):
                 self.assertEqual([len(x) for x in content.inline_keyboard], vector["output"], str(vector["buttons"]))
 
-    def test_6_client_connection(self) -> None:
+    async def _test_7_client_connection(self) -> None:
         """Run the client test."""
         if not hasattr(Test, "session") or not hasattr(Test, "navigation"):
             self.fail("Telegram session not available")
         _navigation = Test.navigation
 
         # try broadcasting a message to all opened sessions
-        msg_h = Test.session.broadcast_message("Broadcast message")
-        self.assertIsInstance(msg_h[0], telegram.message.Message)
+        msg_h = await Test.session.broadcast_message("Broadcast message")
+        self.assertIsInstance(msg_h[0], Message)
 
         # select 'Action' menu from home, check that level is still 'Home' since flag 'home_after' is True
-        msg_home = _navigation.select_menu_button("Action")
+        msg_home = await _navigation.select_menu_button("Action")
         self.assertEqual(msg_home, -1)
-        time.sleep(0.5)
+        await asyncio.sleep(0.5)
 
-        self.go_check_id(label="Home", expected_id=msg_home)
+        await self.go_check_id(label="Home", expected_id=msg_home)
 
         # Open second menu and check that message id has increased
-        msg_menu2_id = _navigation.select_menu_button("Second menu")
+        msg_menu2_id = await _navigation.select_menu_button("Second menu")
         self.assertGreater(msg_menu2_id, 1)
-        time.sleep(0.5)
+        await asyncio.sleep(0.5)
 
         # Open third menu and check that message id has increased
-        msg_menu3_id = _navigation.select_menu_button("Third menu")
+        msg_menu3_id = await _navigation.select_menu_button("Third menu")
         self.assertGreater(msg_menu3_id, msg_menu2_id)
-        time.sleep(0.5)
+        await asyncio.sleep(0.5)
 
         # Select option button and check that message id has increased
-        msg_option_id = _navigation.select_menu_button("Option")
+        msg_option_id = await _navigation.select_menu_button("Option")
         self.assertGreater(msg_option_id, msg_menu3_id)
-        time.sleep(0.5)
+        await asyncio.sleep(0.5)
 
         # go back from each sub-menu
-        self.go_check_id(label="Back")
-        self.go_check_id(label="Back")
+        await self.go_check_id(label="Back")
+        await self.go_check_id(label="Back")
 
         # go home from each sub-menu
-        self.go_check_id(label="Second menu")
-        self.go_check_id(label="Home")
+        await self.go_check_id(label="Second menu")
+        await self.go_check_id(label="Home")
 
-        self.go_check_id(label="Second menu")
-        self.go_check_id(label="Third menu")
-        self.go_check_id(label="Home")
+        await self.go_check_id(label="Second menu")
+        await self.go_check_id(label="Third menu")
+        await self.go_check_id(label="Home")
 
-        self.go_check_id(label="Second menu")
-        self.go_check_id(label="Third menu")
-        self.go_check_id(label="Option")
-        time.sleep(0.5)
+        await self.go_check_id(label="Second menu")
+        await self.go_check_id(label="Third menu")
+        await self.go_check_id(label="Option")
+        await asyncio.sleep(0.5)
 
         # run the update callback to trigger edition
         for callback in Test.update_callback:
-            callback()
+            if asyncio.iscoroutinefunction(callback):
+                await callback()
+            else:
+                callback()
 
-        Test.session.updater.stop()
-        logging.info("Test finished")
-
-    def go_check_id(self, label: str, expected_id: Optional[int] = None) -> None:
-        msg_id = Test.navigation.select_menu_button(label)
+    async def go_check_id(self, label: str, expected_id: Optional[int] = None) -> None:
+        """Select an entry."""
+        msg_id = await Test.navigation.select_menu_button(label)
         if expected_id is not None:
             self.assertEqual(msg_id, expected_id)
-        time.sleep(0.2)
+        await asyncio.sleep(0.2)
 
 
 def init_logger() -> None:

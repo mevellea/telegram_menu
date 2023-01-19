@@ -583,7 +583,10 @@ class NavigationHandler:
 
         answer_ascii = self._poll.poll.options[answer_id].text.encode("ascii", "ignore").decode()
         logger.info(f"{self.user_name}'s answer to question '{self._poll.poll.question}' is '{answer_ascii}'")
-        self._poll_callback(self._poll.poll.options[answer_id].text)
+        if asyncio.iscoroutinefunction(self._poll_callback):
+            await self._poll_callback(self._poll.poll.options[answer_id].text)
+        else:
+            self._poll_callback(self._poll.poll.options[answer_id].text)
         await asyncio.sleep(1)
         await self.poll_delete()
 

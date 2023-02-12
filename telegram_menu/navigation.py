@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, List, Optional, Type, Union
 
 import telegram.ext
+import tzlocal
 import validators
 from apscheduler.schedulers.base import BaseScheduler
 from telegram import Bot, Chat, InlineKeyboardMarkup, Message, ReplyKeyboardMarkup, Update
@@ -133,17 +134,18 @@ class TelegramMenuSession:
 
     async def _button_select_callback(self, update: Update, context: CallbackContext) -> None:  # type: ignore
         """Menu message main entry point."""
-        if update.effective_chat is None:
+        if update.effective_chat is None or update.message is None:
             raise NavigationException("Chat object was not created")
         session = self.get_session(update.effective_chat.id)
         if session is None:
             await self._send_start_message(update, context)
             return
-        await session.select_menu_button(update.message.text)
+        if update.message.text:
+            await session.select_menu_button(update.message.text)
 
     async def _poll_answer(self, update: Update, _: CallbackContext) -> None:  # type: ignore
         """Entry point for poll selection."""
-        if update.effective_user is None:
+        if update.effective_user is None or update.poll_answer is None:
             raise NavigationException("User object was not created")
         session = next((x for x in self.sessions if x.user_name == update.effective_user.first_name), None)
         if session:
@@ -151,13 +153,14 @@ class TelegramMenuSession:
 
     async def _button_inline_select_callback(self, update: Update, context: CallbackContext) -> None:  # type: ignore
         """Execute inline callback of an BaseMessage."""
-        if update.effective_chat is None:
+        if update.effective_chat is None or update.callback_query is None:
             raise NavigationException("Chat object was not created")
         session = self.get_session(update.effective_chat.id)
         if session is None:
             await self._send_start_message(update, context)
             return
-        await session.app_message_button_callback(update.callback_query.data, update.callback_query.id)
+        if update.callback_query.data and update.callback_query.id:
+            await session.app_message_button_callback(update.callback_query.data, update.callback_query.id)
 
     async def _button_webapp_callback(self, update: Update, context: CallbackContext) -> None:  # type: ignore
         """Execute webapp callback."""
@@ -562,13 +565,14 @@ class NavigationHandler:
             self.poll_delete,
             "date",
             id=self.poll_name,
-            next_run_time=datetime.datetime.now() + datetime.timedelta(seconds=self.POLL_DEADLINE + 1),
+            next_run_time=datetime.datetime.now(tz=tzlocal.get_localzone())
+            + datetime.timedelta(seconds=self.POLL_DEADLINE + 1),
             replace_existing=True,
         )
 
     async def poll_delete(self) -> None:
         """Run when poll timeout has expired."""
-        if self._poll is not None:
+        if self._poll is not None and self._poll.poll is not None:
             try:
                 logger.info(f"Deleting poll '{self._poll.poll.question}'")
                 await self._bot.delete_message(chat_id=self.chat_id, message_id=self._poll.message_id)
@@ -577,7 +581,12 @@ class NavigationHandler:
 
     async def poll_answer(self, answer_id: int) -> None:
         """Run when poll message is received."""
-        if self._poll is None or self._poll_callback is None or not callable(self._poll_callback):
+        if (
+            self._poll is None
+            or self._poll.poll is None
+            or self._poll_callback is None
+            or not callable(self._poll_callback)
+        ):
             logger.error("Poll is not defined")
             return
 

@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 
 """Test telegram_menu package."""
+
 import asyncio
 import datetime
 import json
 import logging
 import unittest
+from logging import Logger
 from pathlib import Path
 from typing import Any, Callable, Coroutine, List, Optional, Union
 
@@ -253,7 +255,7 @@ class Test(unittest.TestCase):
 
     def setUp(self) -> None:
         """Set-up the unit-test."""
-        init_logger()
+        self.logger = init_logger(__name__)
         with (Path.home() / ".telegram_menu" / "key.txt").open() as key_h:
             self.api_key = key_h.read().strip()
         Test.session = TelegramMenuSession(api_key=self.api_key)
@@ -265,7 +267,7 @@ class Test(unittest.TestCase):
 
     async def get_session(self):
         """Get the session."""
-        print("\n### Waiting for a manual request to start the Telegram session...\n")
+        self.logger.info("\n### Waiting for a manual request to start the Telegram session...\n")
         while not hasattr(Test, "navigation") or Test.navigation is None:
             nav = Test.session.get_session()
             if nav is not None:
@@ -459,22 +461,25 @@ class Test(unittest.TestCase):
         await asyncio.sleep(0.2)
 
 
-def init_logger() -> None:
+def init_logger(current_logger) -> Logger:
     """Initialize logger properties."""
     _packages: List[TypePackageLogger] = [
         {"package": "apscheduler", "level": logging.WARNING},
         {"package": "telegram_menu", "level": logging.DEBUG},
+        {"package": current_logger, "level": logging.DEBUG},
     ]
     log_formatter = logging.Formatter(
         fmt="%(asctime)s [%(name)s] [%(levelname)s]  %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
     )
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(log_formatter)
+    _logger = logging.getLogger(current_logger)
     for _package in _packages:
         _logger = logging.getLogger(_package["package"])
         _logger.setLevel(_package["level"])
         _logger.addHandler(console_handler)
         _logger.propagate = False
+    return _logger
 
 
 def format_list(args_array: KeyboardContent) -> str:

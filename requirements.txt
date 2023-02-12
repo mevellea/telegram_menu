@@ -1,4 +1,5 @@
 APScheduler>=3.0.0
 emoji>=2.0.0
-python-telegram-bot==20.0
+python-telegram-bot[callback-data]==20.1
+tzlocal>=4.0
 validators

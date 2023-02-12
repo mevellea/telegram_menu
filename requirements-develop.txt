@@ -1,6 +1,7 @@
 -r requirements.txt
 # metrics
 black
+flake8
 isort
 mypy
 pycodestyle
@@ -9,6 +10,7 @@ pylint
 rope
 setuptools
 types-emoji
+types-tzlocal
 # documentation
 Sphinx
 sphinx-autodoc-typehints

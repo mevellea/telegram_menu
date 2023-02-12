@@ -13,6 +13,7 @@ from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, Callable, Coroutine, List, Optional, Union
 
 import emoji
+import tzlocal
 import validators
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup, WebAppInfo
 
@@ -252,12 +253,12 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
 
     def is_alive(self) -> None:
         """Update message timestamp."""
-        self.time_alive = datetime.datetime.now()
+        self.time_alive = datetime.datetime.now(tz=tzlocal.get_localzone())
 
     def has_expired(self) -> bool:
         """Return True if expiry date of message has expired."""
         if self.time_alive is not None:
-            return self.time_alive + self.expiry_period < datetime.datetime.now()
+            return self.time_alive + self.expiry_period < datetime.datetime.now(tz=tzlocal.get_localzone())
         return False
 
     def kill_message(self) -> None:

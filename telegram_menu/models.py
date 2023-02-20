@@ -1,6 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# pylint: disable=too-many-arguments
+#
+# Copyright 2020-2023 Armel Mevellec
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, version 3.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+#
 
 """Messages and navigation models."""
 
@@ -39,17 +53,14 @@ class ButtonType(Enum):
 
 @dataclass
 class MenuButton:
-    """
-    Base button class, wrapper for label with callback.
+    """Base button class, wrapper for label with callback.
 
-    Parameters
-    ----------
-    label: button label
-    callback: method called on button selection
-    btype: button type
-    args: argument passed to the callback
-    notification: send notification to user
-
+    Args:
+        label: button label
+        callback: method called on button selection
+        btype: button type
+        args: argument passed to the callback
+        notification: send notification to user
     """
 
     def __init__(
@@ -70,19 +81,16 @@ class MenuButton:
         self.web_app_url = web_app_url
 
 
-class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
-    """
-    Base message class, buttons array and label updater.
+class BaseMessage(ABC):
+    """Base message class, buttons array and label updater.
 
-    Parameters
-    ----------
-    navigation: navigation manager
-    label: message label
-    expiry_period: duration before the message is deleted
-    inlined: create an inlined message instead of a menu message
-    home_after: go back to home menu after executing the action
-    notification: show a notification in Telegram interface
-
+    Args:
+        navigation: navigation manager
+        label: message label
+        expiry_period: duration before the message is deleted
+        inlined: create an inlined message instead of a menu message
+        home_after: go back to home menu after executing the action
+        notification: show a notification in Telegram interface
     """
 
     EXPIRING_DELAY = 12  # minutes
@@ -126,44 +134,14 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
 
     @abstractmethod
     def update(self) -> str:
-        """
-        Update message content.
-
-        Returns
-        -------
-        Message content formatted with HTML formatting.
-
-        """
+        """Update message content with HTML formatting."""
         raise NotImplementedError
 
     async def text_input(self, text: str) -> None:
-        """
-        Receive text from console.
-
-        If used, this function must be instantiated in the child class.
-
-        Parameters
-        ----------
-        text: text received from console
-        """
+        """Receive text from console. If used, this function must be instantiated in the child class."""
 
     def get_button(self, label: str) -> Optional[MenuButton]:
-        """
-        Get button matching given label.
-
-        Parameters
-        ----------
-        label: message label
-
-        Returns
-        -------
-        Button matching label
-
-        Raises
-        ------
-        EnvironmentError: too many buttons matching label
-
-        """
+        """Get button matching given label."""
         return next(iter(y for x in self.keyboard for y in x if y.label == label), None)
 
     def add_button_back(self, **args: Any) -> None:
@@ -184,19 +162,16 @@ class BaseMessage(ABC):  # pylint: disable=too-many-instance-attributes
         new_row: bool = False,
         web_app_url: str = "",
     ) -> None:
-        """
-        Add a button to keyboard attribute.
+        """Add a button to keyboard attribute.
 
-        Parameters
-        ----------
-        label: button label
-        callback: method called on button selection
-        btype: button type
-        args: argument passed to the callback
-        notification: send notification to user
-        new_row: add a new row
-        web_app_url: URL of the web-app
-
+        Args:
+            label: button label
+            callback: method called on button selection
+            btype: button type
+            args: argument passed to the callback
+            notification: send notification to user
+            new_row: add a new row
+            web_app_url: URL of the web-app
         """
         # arrange buttons per row, depending on inlined property
         buttons_per_row = 2 if not self.inlined else 4
@@ -270,6 +245,6 @@ def emoji_replace(label: str) -> str:
     """Replace emoji token with utf-16 code."""
     match_emoji = re.findall(r"(:\w+:)", label)
     for item in match_emoji:
-        emoji_str = emoji.emojize(item, language="alias")  # pylint: disable=unexpected-keyword-arg
+        emoji_str = emoji.emojize(item, language="alias")
         label = label.replace(item, emoji_str)
     return label

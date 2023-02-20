@@ -1,5 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+#
+# Copyright 2020-2023 Armel Mevellec
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, version 3.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+#
 
 """Telegram menu navigation."""
 
@@ -41,14 +56,11 @@ class TelegramMenuSession:
     START_MESSAGE = "start"
 
     def __init__(self, api_key: str, start_message: str = START_MESSAGE) -> None:
-        """
-        Initialize the session object.
+        """Initialize the session object.
 
-        Parameters
-        ----------
-        api_key: Telegram bot API key
-        start_message: text used to start a session, e.g. /start
-
+        Args:
+            api_key: Telegram bot API key
+            start_message: text used to start a session, e.g. /start
         """
         if not isinstance(api_key, str):
             raise KeyError("API_KEY must be a string!")
@@ -82,15 +94,13 @@ class TelegramMenuSession:
         polling: bool = True,
         navigation_handler_class: Optional[Type[NavigationHandler]] = None,
     ) -> None:
-        """
-        Set the start message and run the dispatcher.
+        """Set the start message and run the dispatcher.
 
-        Parameters
-        ----------
-        start_message_class: class used to create start message
-        start_message_args: optional arguments passed to the start class
-        polling: if True, start polling updates from Telegram
-        navigation_handler_class: optional class used to extend the base NavigationHandler
+        Args:
+            start_message_class: class used to create start message
+            start_message_args: optional arguments passed to the start class
+            polling: if True, start polling updates from Telegram
+            navigation_handler_class: optional class used to extend the base NavigationHandler
 
         """
         self.start_message_class = start_message_class
@@ -371,7 +381,7 @@ class NavigationHandler:
         message.keyboard_previous = message.keyboard.copy()
         return True
 
-    async def select_menu_button(self, label: str) -> Optional[int]:  # noqa: C901
+    async def select_menu_button(self, label: str) -> Optional[int]:
         """Select menu button using label."""
         msg_id = 0
         if label == "Back":

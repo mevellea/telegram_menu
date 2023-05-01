@@ -259,6 +259,10 @@ class NavigationHandler:
             replace_existing=True,
         )
 
+    @staticmethod
+    async def call_update(menu_message: BaseMessage):
+        return menu_message.update() if not asyncio.iscoroutinefunction(menu_message.update) else await menu_message.update()
+
     async def _expiry_date_checker(self) -> None:
         """Check expiry date of message and delete if expired."""
         for message in self._message_queue:
@@ -283,16 +287,19 @@ class NavigationHandler:
 
     async def goto_menu(self, menu_message: BaseMessage) -> int:
         """Send menu message and add to queue."""
-        content = menu_message.update()
+        content = await self.call_update(menu_message)
         logger.info(f"Opening menu {menu_message.label}")
         keyboard = menu_message.gen_keyboard_content()
         message = await self.send_message(emoji_replace(content), keyboard, notification=menu_message.notification)
         menu_message.is_alive()
+        menu_message.message_id = message.message_id
         self._menu_queue.append(menu_message)
         return message.message_id
 
     async def goto_home(self) -> int:
         """Go to home menu, empty menu_queue."""
+        if not self._menu_queue:
+            return -1
         if len(self._menu_queue) == 1:
             # already at 'home' level
             return self._menu_queue[0].message_id
@@ -308,7 +315,7 @@ class NavigationHandler:
 
     async def _send_app_message(self, message: BaseMessage, label: str) -> int:
         """Send an application message."""
-        content = emoji_replace(message.update())
+        content = emoji_replace(await self.call_update(message))
         # if message with this label already exist in message_queue, delete it and replace it
         info_message = self.filter_unicode(f"Send message '{message.label}': '{label}'")
         logger.info(str(info_message))
@@ -353,7 +360,7 @@ class NavigationHandler:
             return False
 
         # check if content and keyboard have changed since previous message
-        content = emoji_replace(message_updt.update())
+        content = emoji_replace(await self.call_update(message_updt))
         if not self._message_check_changes(message_updt, content):
             return False
 

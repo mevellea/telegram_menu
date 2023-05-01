@@ -26,13 +26,15 @@ import imghdr
 import logging
 import mimetypes
 from pathlib import Path
-from typing import Any, List, Optional, Type, Union
+from typing import Any, List, Optional, Type, Union, Sequence
 
 import telegram.ext
 import tzlocal
 import validators
 from apscheduler.schedulers.base import BaseScheduler
 from telegram import Bot, Chat, InlineKeyboardMarkup, Message, ReplyKeyboardMarkup, Update
+from telegram._utils.defaultvalue import DEFAULT_NONE
+from telegram._utils.types import ODVInput
 from telegram.constants import ChatAction, ParseMode
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, MessageHandler, PicklePersistence
 from telegram.ext._callbackcontext import CallbackContext
@@ -93,6 +95,7 @@ class TelegramMenuSession:
         start_message_args: Optional[List[Any]] = None,
         polling: bool = True,
         navigation_handler_class: Optional[Type[NavigationHandler]] = None,
+        stop_signals: ODVInput[Sequence[int]] = DEFAULT_NONE
     ) -> None:
         """Set the start message and run the dispatcher.
 
@@ -116,7 +119,7 @@ class TelegramMenuSession:
         if not self.scheduler.running:
             self.scheduler.start()
         if polling:
-            self.application.run_polling()
+            self.application.run_polling(stop_signals=stop_signals)
 
     async def _send_start_message(self, update: Update, _: Any) -> None:  # type: ignore
         """Start main message, app choice."""

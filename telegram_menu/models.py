@@ -18,6 +18,7 @@
 
 """Messages and navigation models."""
 
+import asyncio
 import datetime
 import logging
 import re
@@ -30,6 +31,7 @@ import emoji
 import tzlocal
 import validators
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup, WebAppInfo
+from telegram.ext._callbackcontext import CallbackContext
 
 if TYPE_CHECKING:
     from telegram_menu import NavigationHandler
@@ -39,6 +41,21 @@ logger = logging.getLogger(__name__)
 
 TypeCallback = Optional[Union[Callable[..., Any], Coroutine[Any, Any, None], "BaseMessage"]]
 TypeKeyboard = List[List["MenuButton"]]
+
+
+async def call_function_EAFP(method, par, *args, **kwargs):
+    """Convenience function to call a function that could be a couritine and could not accept an argument"""
+
+    if asyncio.iscoroutinefunction(method):
+        try:
+            return await method(*args, par, **kwargs)
+        except TypeError:
+            return await method(*args, **kwargs)
+    else:
+        try:
+            return method(*args, par, **kwargs)
+        except TypeError:
+            return method(*args, **kwargs)
 
 
 class ButtonType(Enum):
@@ -87,6 +104,8 @@ class BaseMessage(ABC):
     Args:
         navigation: navigation manager
         label: message label
+        picture: path of the picture to send. Leave None if no picure
+                 should be sent
         expiry_period: duration before the message is deleted
         inlined: create an inlined message instead of a menu message
         home_after: go back to home menu after executing the action
@@ -101,6 +120,7 @@ class BaseMessage(ABC):
         self,
         navigation: "NavigationHandler",
         label: str = "",
+        picture: str = None,
         expiry_period: Optional[datetime.timedelta] = None,
         inlined: bool = False,
         home_after: bool = False,
@@ -112,6 +132,7 @@ class BaseMessage(ABC):
         self.keyboard: TypeKeyboard = [[]]
         self.label = emoji_replace(label)
         self.inlined = inlined
+        self.picture = picture
         self.notification = notification
         self.navigation = navigation
         self.input_field = input_field
@@ -133,11 +154,17 @@ class BaseMessage(ABC):
         self._status = None
 
     @abstractmethod
-    def update(self) -> str:
-        """Update message content with HTML formatting."""
+    def update(self, context: Optional[CallbackContext] = None) -> str:
+        """Update message content with HTML formatting. It can be also implemented as a courutine (async) method."""
         raise NotImplementedError
 
-    async def text_input(self, text: str) -> None:
+    async def get_updated_content(self, context: Optional[CallbackContext] = None):
+        """Convenience wrapper for update method that detects if update is a couritine or nt and calls it
+        accordingly doing also the emoji replacement."""
+        v = await call_function_EAFP(self.update, context)
+        return emoji_replace(v) if v else v
+
+    async def text_input(self, text: str, context: Optional[CallbackContext] = None) -> None:
         """Receive text from console. If used, this function must be instantiated in the child class."""
 
     def get_button(self, label: str) -> Optional[MenuButton]:

@@ -32,6 +32,7 @@ import tzlocal
 import validators
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup, WebAppInfo
 from telegram.ext._callbackcontext import CallbackContext
+from telegram.ext._utils.types import BD, BT, CD, UD
 
 if TYPE_CHECKING:
     from telegram_menu import NavigationHandler
@@ -43,9 +44,8 @@ TypeCallback = Optional[Union[Callable[..., Any], Coroutine[Any, Any, None], "Ba
 TypeKeyboard = List[List["MenuButton"]]
 
 
-async def call_function_EAFP(method, par, *args, **kwargs):
-    """Convenience function to call a function that could be a couritine and could not accept an argument"""
-
+async def call_function_EAFP(method: TypeCallback, par: Any, *args: Any, **kwargs: Any) -> Any:
+    """Call a function that could be a coroutine and could not accept an argument."""
     if asyncio.iscoroutinefunction(method):
         try:
             return await method(*args, par, **kwargs)
@@ -53,9 +53,9 @@ async def call_function_EAFP(method, par, *args, **kwargs):
             return await method(*args, **kwargs)
     else:
         try:
-            return method(*args, par, **kwargs)
+            return method(*args, par, **kwargs)  # type: ignore
         except TypeError:
-            return method(*args, **kwargs)
+            return method(*args, **kwargs)  # type: ignore
 
 
 class ButtonType(Enum):
@@ -120,7 +120,7 @@ class BaseMessage(ABC):
         self,
         navigation: "NavigationHandler",
         label: str = "",
-        picture: str = None,
+        picture: str = "",
         expiry_period: Optional[datetime.timedelta] = None,
         inlined: bool = False,
         home_after: bool = False,
@@ -154,17 +154,16 @@ class BaseMessage(ABC):
         self._status = None
 
     @abstractmethod
-    def update(self, context: Optional[CallbackContext] = None) -> str:
-        """Update message content with HTML formatting. It can be also implemented as a courutine (async) method."""
+    def update(self, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> str:
+        """Update message content with HTML formatting. It can be also implemented as a coroutine (async) method."""
         raise NotImplementedError
 
-    async def get_updated_content(self, context: Optional[CallbackContext] = None):
-        """Convenience wrapper for update method that detects if update is a couritine or nt and calls it
-        accordingly doing also the emoji replacement."""
+    async def get_updated_content(self, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> str:
+        """Update method that detects if update is a coroutine or not and calls it doing also the emoji replacement."""
         v = await call_function_EAFP(self.update, context)
         return emoji_replace(v) if v else v
 
-    async def text_input(self, text: str, context: Optional[CallbackContext] = None) -> None:
+    async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> None:
         """Receive text from console. If used, this function must be instantiated in the child class."""
 
     def get_button(self, label: str) -> Optional[MenuButton]:

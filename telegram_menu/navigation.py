@@ -122,7 +122,7 @@ class TelegramMenuSession:
         if polling:
             self.application.run_polling(stop_signals=stop_signals)
 
-    async def _send_start_message(self, update: Update, _: Any) -> None:  # type: ignore
+    async def _send_start_message(self, update: Update, context: CallbackContext[BT, UD, CD, BD]) -> None:  # type: ignore
         """Start main message, app choice."""
         chat = update.effective_chat
         if chat is None:
@@ -137,7 +137,7 @@ class TelegramMenuSession:
             start_message = self.start_message_class(session, message_args=self.start_message_args)
         else:
             start_message = self.start_message_class(session)
-        await session.goto_menu(start_message)
+        await session.goto_menu(start_message, context)
 
     def get_session(self, chat_id: int = 0) -> Optional[NavigationHandler]:
         """Get session from list."""

@@ -26,19 +26,22 @@ import imghdr
 import logging
 import mimetypes
 from pathlib import Path
-from typing import Any, List, Optional, Type, Union
+from typing import Any, List, Optional, Sequence, Type, Union
 
 import telegram.ext
 import tzlocal
 import validators
 from apscheduler.schedulers.base import BaseScheduler
 from telegram import Bot, Chat, InlineKeyboardMarkup, Message, ReplyKeyboardMarkup, Update
+from telegram._utils.defaultvalue import DEFAULT_NONE
+from telegram._utils.types import ODVInput
 from telegram.constants import ChatAction, ParseMode
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, MessageHandler, PicklePersistence
 from telegram.ext._callbackcontext import CallbackContext
+from telegram.ext._utils.types import BD, BT, CD, UD
 
 from ._version import __raw_url__
-from .models import BaseMessage, ButtonType, TypeCallback, emoji_replace
+from .models import BaseMessage, ButtonType, TypeCallback, call_function_EAFP, emoji_replace
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +58,7 @@ class TelegramMenuSession:
     CONNECT_TIMEOUT = 7
     START_MESSAGE = "start"
 
-    def __init__(self, api_key: str, start_message: str = START_MESSAGE) -> None:
+    def __init__(self, api_key: str, start_message: str = START_MESSAGE, persistence_path: str = "") -> None:
         """Initialize the session object.
 
         Args:
@@ -65,7 +68,7 @@ class TelegramMenuSession:
         if not isinstance(api_key, str):
             raise KeyError("API_KEY must be a string!")
 
-        persistence = PicklePersistence(filepath="arbitrarycallbackdatabot")
+        persistence = PicklePersistence(filepath=persistence_path if persistence_path else "arbitrarycallbackdatabot")
         self.application = (
             Application.builder().token(api_key).persistence(persistence).arbitrary_callback_data(True).build()
         )
@@ -93,6 +96,7 @@ class TelegramMenuSession:
         start_message_args: Optional[List[Any]] = None,
         polling: bool = True,
         navigation_handler_class: Optional[Type[NavigationHandler]] = None,
+        stop_signals: ODVInput[Sequence[int]] = DEFAULT_NONE,
     ) -> None:
         """Set the start message and run the dispatcher.
 
@@ -116,9 +120,9 @@ class TelegramMenuSession:
         if not self.scheduler.running:
             self.scheduler.start()
         if polling:
-            self.application.run_polling()
+            self.application.run_polling(stop_signals=stop_signals)
 
-    async def _send_start_message(self, update: Update, _: Any) -> None:  # type: ignore
+    async def _send_start_message(self, update: Update, context: CallbackContext[BT, UD, CD, BD]) -> None:
         """Start main message, app choice."""
         chat = update.effective_chat
         if chat is None:
@@ -133,7 +137,7 @@ class TelegramMenuSession:
             start_message = self.start_message_class(session, message_args=self.start_message_args)
         else:
             start_message = self.start_message_class(session)
-        await session.goto_menu(start_message)
+        await session.goto_menu(start_message, context)
 
     def get_session(self, chat_id: int = 0) -> Optional[NavigationHandler]:
         """Get session from list."""
@@ -142,7 +146,7 @@ class TelegramMenuSession:
             return None
         return sessions[0]
 
-    async def _button_select_callback(self, update: Update, context: CallbackContext) -> None:  # type: ignore
+    async def _button_select_callback(self, update: Update, context: CallbackContext[BT, UD, CD, BD]) -> None:
         """Menu message main entry point."""
         if update.effective_chat is None or update.message is None:
             raise NavigationException("Chat object was not created")
@@ -151,9 +155,9 @@ class TelegramMenuSession:
             await self._send_start_message(update, context)
             return
         if update.message.text:
-            await session.select_menu_button(update.message.text)
+            await session.select_menu_button(update.message.text, context)
 
-    async def _poll_answer(self, update: Update, _: CallbackContext) -> None:  # type: ignore
+    async def _poll_answer(self, update: Update, _: CallbackContext[BT, UD, CD, BD]) -> None:
         """Entry point for poll selection."""
         if update.effective_user is None or update.poll_answer is None:
             raise NavigationException("User object was not created")
@@ -161,7 +165,7 @@ class TelegramMenuSession:
         if session:
             await session.poll_answer(update.poll_answer.option_ids[0])
 
-    async def _button_inline_select_callback(self, update: Update, context: CallbackContext) -> None:  # type: ignore
+    async def _button_inline_select_callback(self, update: Update, context: CallbackContext[BT, UD, CD, BD]) -> None:
         """Execute inline callback of an BaseMessage."""
         if update.effective_chat is None or update.callback_query is None:
             raise NavigationException("Chat object was not created")
@@ -170,9 +174,9 @@ class TelegramMenuSession:
             await self._send_start_message(update, context)
             return
         if update.callback_query.data and update.callback_query.id:
-            await session.app_message_button_callback(update.callback_query.data, update.callback_query.id)
+            await session.app_message_button_callback(update.callback_query.data, update.callback_query.id, context)
 
-    async def _button_webapp_callback(self, update: Update, context: CallbackContext) -> None:  # type: ignore
+    async def _button_webapp_callback(self, update: Update, context: CallbackContext[BT, UD, CD, BD]) -> None:
         """Execute webapp callback."""
         if (
             update.effective_chat is None
@@ -189,7 +193,7 @@ class TelegramMenuSession:
         )
 
     @staticmethod
-    async def _msg_error_handler(update: object, context: CallbackContext) -> None:  # type: ignore
+    async def _msg_error_handler(update: object, context: CallbackContext[BT, UD, CD, BD]) -> None:  # type: ignore
         """Log Errors caused by Updates."""
         if not isinstance(update, Update):
             raise NavigationException("Incorrect update object")
@@ -278,34 +282,47 @@ class NavigationHandler:
             await self.delete_message(message.message_id)
         del message
 
-    async def goto_menu(self, menu_message: BaseMessage) -> int:
+    async def goto_menu(
+        self, menu_message: BaseMessage, context: Optional[CallbackContext[BT, UD, CD, BD]] = None
+    ) -> int:
         """Send menu message and add to queue."""
-        content = menu_message.update()
+        content = await menu_message.get_updated_content(context)
         logger.info(f"Opening menu {menu_message.label}")
         keyboard = menu_message.gen_keyboard_content()
-        message = await self.send_message(emoji_replace(content), keyboard, notification=menu_message.notification)
+        if menu_message.picture:
+            message = await self.send_photo(
+                menu_message.picture, notification=menu_message.notification, keyboard=keyboard, caption=content
+            )
+        else:
+            message = await self.send_message(content, keyboard, notification=menu_message.notification)
+        if message is None:
+            return -1  # message was not sent, abort
         menu_message.is_alive()
         self._menu_queue.append(menu_message)
         return message.message_id
 
-    async def goto_home(self) -> int:
+    async def goto_home(self, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> int:
         """Go to home menu, empty menu_queue."""
+        if not self._menu_queue:
+            return -1
         if len(self._menu_queue) == 1:
             # already at 'home' level
             return self._menu_queue[0].message_id
         menu_previous = self._menu_queue.pop()
         while self._menu_queue:
             menu_previous = self._menu_queue.pop()
-        return await self.goto_menu(menu_previous)
+        return await self.goto_menu(menu_previous, context)
 
     @staticmethod
     def filter_unicode(input_string: str) -> str:
         """Remove non-unicode characters from input string."""
         return input_string.encode("ascii", "ignore").decode("utf-8")
 
-    async def _send_app_message(self, message: BaseMessage, label: str) -> int:
+    async def _send_app_message(
+        self, message: BaseMessage, label: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None
+    ) -> int:
         """Send an application message."""
-        content = emoji_replace(message.update())
+        content = await message.get_updated_content(context)
         # if message with this label already exist in message_queue, delete it and replace it
         info_message = self.filter_unicode(f"Send message '{message.label}': '{label}'")
         logger.info(str(info_message))
@@ -320,7 +337,14 @@ class NavigationHandler:
         message.is_alive()
 
         keyboard = message.gen_inline_keyboard_content()
-        msg = await self.send_message(content, keyboard, message.notification)
+        if message.picture:
+            msg = await self.send_photo(
+                message.picture, notification=message.notification, caption=content, keyboard=keyboard
+            )
+        else:
+            msg = await self.send_message(content, keyboard, message.notification)
+        if msg is None:
+            return -1  # message was not sent, abort
         message.message_id = msg.message_id
         self._message_queue.append(message)
 
@@ -343,26 +367,37 @@ class NavigationHandler:
             disable_notification=not notification,
         )
 
-    async def edit_message(self, message: BaseMessage) -> bool:
+    async def edit_message(
+        self, message: BaseMessage, context: Optional[CallbackContext[BT, UD, CD, BD]] = None
+    ) -> bool:
         """Edit an inline message asynchronously."""
         message_updt = self.get_message(message.label)
         if message_updt is None:
             return False
 
         # check if content and keyboard have changed since previous message
-        content = emoji_replace(message_updt.update())
+        content = await message_updt.get_updated_content(context)
         if not self._message_check_changes(message_updt, content):
             return False
 
         keyboard_format = message_updt.gen_inline_keyboard_content()
         try:
-            await self._bot.edit_message_text(
-                text=content,
-                chat_id=self.chat_id,
-                message_id=message_updt.message_id,
-                parse_mode=ParseMode.HTML,
-                reply_markup=keyboard_format,
-            )
+            if message_updt.picture:
+                await self._bot.edit_message_caption(
+                    caption=content,
+                    chat_id=self.chat_id,
+                    message_id=message_updt.message_id,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=keyboard_format,
+                )
+            else:
+                await self._bot.edit_message_text(
+                    text=content,
+                    chat_id=self.chat_id,
+                    message_id=message_updt.message_id,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=keyboard_format,
+                )
         except telegram.error.BadRequest as error:
             logger.error(error)
             return False
@@ -381,7 +416,9 @@ class NavigationHandler:
         message.keyboard_previous = message.keyboard.copy()
         return True
 
-    async def select_menu_button(self, label: str) -> Optional[int]:
+    async def select_menu_button(
+        self, label: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None
+    ) -> Optional[int]:  # noqa: C901
         """Select menu button using label."""
         msg_id = 0
         if label == "Back":
@@ -391,9 +428,9 @@ class NavigationHandler:
             menu_previous = self._menu_queue.pop()  # delete actual menu
             if self._menu_queue:
                 menu_previous = self._menu_queue.pop()
-            return await self.goto_menu(menu_previous)
+            return await self.goto_menu(menu_previous, context)
         if label == "Home":
-            return await self.goto_home()
+            return await self.goto_home(context)
 
         for menu_item in self._menu_queue[::-1]:
             btn = menu_item.get_button(label)
@@ -401,30 +438,27 @@ class NavigationHandler:
                 continue
             if isinstance(btn.callback, BaseMessage):
                 if btn.callback.inlined:
-                    msg_id = await self._send_app_message(btn.callback, label)
+                    msg_id = await self._send_app_message(btn.callback, label, context)
                     if btn.callback.home_after:
-                        msg_id = await self.goto_home()
+                        msg_id = await self.goto_home(context)
                 else:
-                    msg_id = await self.goto_menu(btn.callback)
+                    msg_id = await self.goto_menu(btn.callback, context)
             elif btn.callback is not None and hasattr(btn.callback, "__call__"):
-                if asyncio.iscoroutinefunction(btn.callback):
-                    await btn.callback()  # type: ignore
-                else:
-                    btn.callback()  # type: ignore
+                await call_function_EAFP(btn.callback, context)
             return msg_id
 
         # label does not match any sub-menu, just process the user input
-        await self.capture_user_input(label)
+        await self.capture_user_input(label, context)
         return None
 
-    async def capture_user_input(self, label: str) -> None:
+    async def capture_user_input(self, label: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> None:
         """Process the user input in the last message updated."""
         last_menu_message = self._menu_queue[-1]
         if self._message_queue:
             last_app_message = self._message_queue[-1]
             if last_app_message.time_alive > last_menu_message.time_alive:
                 last_menu_message = last_app_message
-        await last_menu_message.text_input(label)
+        await last_menu_message.text_input(label, context)
 
     async def app_message_webapp_callback(self, webapp_data: str, button_text: str) -> None:
         """Execute the callback associated to this webapp."""
@@ -437,7 +471,9 @@ class NavigationHandler:
                 html_response = webapp_message.callback(webapp_data)
             await self.send_message(html_response, notification=webapp_message.notification)
 
-    async def app_message_button_callback(self, callback_label: str, callback_id: str) -> None:
+    async def app_message_button_callback(
+        self, callback_label: str, callback_id: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None
+    ) -> None:
         """Entry point to execute an action after message button selection."""
         label_message, label_action = callback_label.split(".")
         log_message = self.filter_unicode(f"Received action request from '{label_message}': '{label_action}'")
@@ -468,14 +504,9 @@ class NavigationHandler:
             return
 
         if btn.args is not None:
-            if asyncio.iscoroutinefunction(btn.callback):
-                action_status = await btn.callback(btn.args)
-            else:
-                action_status = btn.callback(btn.args)
-        elif asyncio.iscoroutinefunction(btn.callback):
-            action_status = await btn.callback()
+            action_status = await call_function_EAFP(btn.callback, context, btn.args)
         else:
-            action_status = btn.callback()
+            action_status = await call_function_EAFP(btn.callback, context)
 
         # send picture if custom label found
         if btn.btype == ButtonType.PICTURE:
@@ -494,7 +525,7 @@ class NavigationHandler:
 
         # update expiry period and update
         message.is_alive()
-        await self.edit_message(message)
+        await self.edit_message(message, context)
 
     @staticmethod
     def _sticker_check_replace(sticker_path: str) -> Union[str, bytes]:
@@ -533,12 +564,22 @@ class NavigationHandler:
             logger.error(f"Picture path '{picture_path}' is invalid, replacing with default {url_default}")
             return url_default
 
-    async def send_photo(self, picture_path: str, notification: bool = True) -> Optional[telegram.Message]:
+    async def send_photo(
+        self,
+        picture_path: str,
+        notification: bool = True,
+        caption: str = "",
+        keyboard: Optional[Union[ReplyKeyboardMarkup, InlineKeyboardMarkup]] = None,
+    ) -> Optional[telegram.Message]:
         """Send a picture."""
         picture_obj = self._picture_check_replace(picture_path=picture_path)
         try:
             return await self._bot.send_photo(
-                chat_id=self.chat_id, photo=picture_obj, disable_notification=not notification
+                chat_id=self.chat_id,
+                photo=picture_obj,
+                caption=caption,
+                reply_markup=keyboard,
+                disable_notification=not notification,
             )
         except telegram.error.BadRequest as error:
             logger.error(f"Failed to send picture {picture_path}: {error}")

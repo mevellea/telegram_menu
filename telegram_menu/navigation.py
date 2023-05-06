@@ -122,7 +122,7 @@ class TelegramMenuSession:
         if polling:
             self.application.run_polling(stop_signals=stop_signals)
 
-    async def _send_start_message(self, update: Update, context: CallbackContext[BT, UD, CD, BD]) -> None:  # type: ignore
+    async def _send_start_message(self, update: Update, context: CallbackContext[BT, UD, CD, BD]) -> None:
         """Start main message, app choice."""
         chat = update.effective_chat
         if chat is None:
@@ -298,7 +298,6 @@ class NavigationHandler:
         if message is None:
             return -1  # message was not sent, abort
         menu_message.is_alive()
-        menu_message.message_id = message.message_id
         self._menu_queue.append(menu_message)
         return message.message_id
 

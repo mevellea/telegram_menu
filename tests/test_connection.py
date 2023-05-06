@@ -212,6 +212,7 @@ class SecondMenuMessage(BaseMessage):
             navigation,
             SecondMenuMessage.LABEL,
             notification=False,
+            picture=(ROOT_FOLDER / "resources" / "packages.png").resolve().as_posix(),
             expiry_period=datetime.timedelta(seconds=5),
             input_field="Enter an option",
         )

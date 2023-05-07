@@ -298,6 +298,7 @@ class NavigationHandler:
         if message is None:
             return -1  # message was not sent, abort
         menu_message.is_alive()
+        menu_message.message_id = message.message_id
         self._menu_queue.append(menu_message)
         return message.message_id
 

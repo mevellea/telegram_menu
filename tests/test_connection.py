@@ -426,7 +426,7 @@ class Test(unittest.TestCase):
 
         # select 'Action' menu from home, check that level is still 'Home' since flag 'home_after' is True
         msg_home = await _navigation.select_menu_button("Action")
-        self.assertEqual(msg_home, -1)
+        self.assertNotEqual(msg_home, -1)
         await asyncio.sleep(0.5)
 
         await self.go_check_id(label="Home", expected_id=msg_home)

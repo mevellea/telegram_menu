@@ -147,3 +147,11 @@ Following class diagram describes all public interfaces:
 [models.py]: https://github.com/mevellea/telegram_menu/blob/master/telegram_menu/models.py
 [create a Telegram bot]: https://github.com/python-telegram-bot/python-telegram-bot/wiki/Introduction-to-the-API
 [Demo: TelegramMenuSession]: https://raw.githubusercontent.com/mevellea/telegram_menu/master/resources/demo.gif
+
+## Unit-tests
+
+To execute the test suite, run the following command and then start a session from a Telegram client with the keyword **/start**.
+
+```bash
+python -m unittest
+```

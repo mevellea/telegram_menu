@@ -250,8 +250,9 @@ class BaseMessage(ABC):
                             InlineKeyboardButton(text=btn.label, url=btn.web_app_url)
                         )
                     else:
+                        # do not use callback_data as it is not supported
                         button_array.append(
-                            InlineKeyboardButton(text=btn.label, web_app=WebAppInfo(url=btn.web_app_url))  # do not use callback_data as it is not supported
+                            InlineKeyboardButton(text=btn.label, web_app=WebAppInfo(url=btn.web_app_url))
                         )
                 else:
                     button_array.append(InlineKeyboardButton(text=btn.label, callback_data=lbl))

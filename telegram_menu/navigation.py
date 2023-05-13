@@ -445,7 +445,10 @@ class NavigationHandler:
                 else:
                     msg_id = await self.goto_menu(btn.callback, context)
             elif btn.callback is not None and hasattr(btn.callback, "__call__"):
-                await call_function_EAFP(btn.callback, context)
+                if btn.args is not None:
+                    await call_function_EAFP(btn.callback, context, btn.args)
+                else:
+                    await call_function_EAFP(btn.callback, context)
             return msg_id
 
         # label does not match any sub-menu, just process the user input
@@ -456,9 +459,9 @@ class NavigationHandler:
         """Process the user input in the last message updated."""
         last_menu_message = self._menu_queue[-1]
         if self._message_queue:
-            last_app_message = self._message_queue[-1]
-            if last_app_message.time_alive > last_menu_message.time_alive:
-                last_menu_message = last_app_message
+            for last_app_message in self._message_queue[::-1]:
+                if last_app_message.time_alive > last_menu_message.time_alive:
+                    last_menu_message = last_app_message
         await last_menu_message.text_input(label, context)
 
     async def app_message_webapp_callback(self, webapp_data: str, button_text: str) -> None:
@@ -581,6 +584,7 @@ class NavigationHandler:
                 caption=caption,
                 reply_markup=keyboard,
                 disable_notification=not notification,
+                parse_mode=ParseMode.HTML,
             )
         except telegram.error.BadRequest as error:
             logger.error(f"Failed to send picture {picture_path}: {error}")

@@ -66,6 +66,7 @@ class ButtonType(Enum):
     PICTURE = auto()
     STICKER = auto()
     POLL = auto()
+    LINK = auto()
 
 
 @dataclass
@@ -244,9 +245,14 @@ class BaseMessage(ABC):
             for btn in row:
                 lbl = f"{self.label}.{btn.label}"
                 if btn.web_app_url and validators.url(btn.web_app_url):
-                    button_array.append(
-                        InlineKeyboardButton(text=btn.label, web_app=WebAppInfo(url=btn.web_app_url), callback_data=lbl)
-                    )
+                    if btn.btype == ButtonType.LINK:
+                        button_array.append(
+                            InlineKeyboardButton(text=btn.label, url=btn.web_app_url)
+                        )
+                    else:
+                        button_array.append(
+                            InlineKeyboardButton(text=btn.label, web_app=WebAppInfo(url=btn.web_app_url))  # do not use callback_data as it is not supported
+                        )
                 else:
                     button_array.append(InlineKeyboardButton(text=btn.label, callback_data=lbl))
             keyboard_buttons.append(button_array)

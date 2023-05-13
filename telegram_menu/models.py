@@ -246,9 +246,7 @@ class BaseMessage(ABC):
                 lbl = f"{self.label}.{btn.label}"
                 if btn.web_app_url and validators.url(btn.web_app_url):
                     if btn.btype == ButtonType.LINK:
-                        button_array.append(
-                            InlineKeyboardButton(text=btn.label, url=btn.web_app_url)
-                        )
+                        button_array.append(InlineKeyboardButton(text=btn.label, url=btn.web_app_url))
                     else:
                         # do not use callback_data as it is not supported
                         button_array.append(

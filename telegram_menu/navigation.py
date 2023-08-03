@@ -89,6 +89,7 @@ class TelegramMenuSession:
         self.application.add_handler(CallbackQueryHandler(self._button_inline_select_callback))
         self.application.add_handler(telegram.ext.PollAnswerHandler(self._poll_answer))
         self.application.add_error_handler(self._msg_error_handler)
+        self.application.add_handler(MessageHandler(telegram.ext.filters.LOCATION, self._GetLocation_Handler))
 
     def start(
         self,
@@ -145,6 +146,11 @@ class TelegramMenuSession:
         if not sessions:
             return None
         return sessions[0]
+    
+    async def _GetLocation_Handler(self, update: Update, context: CallbackContext[BT, UD, CD, BD]) -> None:
+        session = self.get_session(update.effective_chat.id)
+        session.location = update.message.location
+
 
     async def _button_select_callback(self, update: Update, context: CallbackContext[BT, UD, CD, BD]) -> None:
         """Menu message main entry point."""
@@ -245,6 +251,7 @@ class NavigationHandler:
         self.chat_id = chat.id
         self.user_name = chat.first_name
         self.poll_name = f"poll_{self.user_name}"
+        self.location = telegram.Location = None
 
         logger.info(f"Opening chat with user {self.user_name}")
 

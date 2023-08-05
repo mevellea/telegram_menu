@@ -34,6 +34,9 @@ try:
 except ImportError:
     from typing import TypedDict
 
+from telegram.ext._callbackcontext import CallbackContext
+from telegram.ext._utils.types import BD, BT, CD, UD
+
 import telegram_menu
 from telegram_menu import BaseMessage, ButtonType, MenuButton, NavigationHandler, TelegramMenuSession
 from telegram_menu._version import __raw_url__
@@ -195,10 +198,10 @@ class ThirdMenuMessage(BaseMessage):
         """Update message content."""
         return "Third message"
 
-    async def text_input(self, text: str) -> None:
+    async def text_input(self, text: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None) -> None:
         """Process text received."""
-        msg_id = await self.navigation.select_menu_button("Action")
-        await self.navigation.delete_message(message_id=msg_id)
+        logging.info(f"Text received: {text}")
+        await self.navigation.select_menu_button("Action")
 
 
 class SecondMenuMessage(BaseMessage):

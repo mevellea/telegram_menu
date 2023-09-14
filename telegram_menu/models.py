@@ -114,6 +114,7 @@ class BaseMessage(ABC):
     """
 
     EXPIRING_DELAY = 12  # minutes
+    SEPARATOR = "##"
 
     time_alive: datetime.datetime
 
@@ -243,7 +244,9 @@ class BaseMessage(ABC):
                 self.input_field = row[0].label
             button_array: List[InlineKeyboardButton] = []
             for btn in row:
-                lbl = f"{self.label}.{btn.label}"
+                if self.SEPARATOR in self.label or self.SEPARATOR in btn.label:
+                    raise ValueError(f"Forbidden character: {self.SEPARATOR}")
+                lbl = f"{self.label}{self.SEPARATOR}{btn.label}"
                 if btn.web_app_url and validators.url(btn.web_app_url):
                     if btn.btype == ButtonType.LINK:
                         button_array.append(InlineKeyboardButton(text=btn.label, url=btn.web_app_url))

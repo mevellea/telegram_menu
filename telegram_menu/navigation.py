@@ -488,7 +488,7 @@ class NavigationHandler:
         self, callback_label: str, callback_id: str, context: Optional[CallbackContext[BT, UD, CD, BD]] = None
     ) -> None:
         """Entry point to execute an action after message button selection."""
-        label_message, label_action = callback_label.split(".")
+        label_message, label_action = callback_label.split(BaseMessage.SEPARATOR)
         log_message = self.filter_unicode(f"Received action request from '{label_message}': '{label_action}'")
         logger.info(log_message)
         message = self.get_message(label_message)

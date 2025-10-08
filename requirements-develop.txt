@@ -9,6 +9,7 @@ pydocstyle
 pylint
 rope
 setuptools
+twine
 types-emoji
 types-tzlocal
 # documentation

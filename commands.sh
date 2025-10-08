@@ -94,6 +94,6 @@ call_check()
 call_release()
 {
   python setup.py sdist
-  # twine upload dist/*.tar.gz
+  # python -m twine upload dist/*.tar.gz
   # pip install -U --index-url https://pypi.org/simple/ telegram_menu
 }

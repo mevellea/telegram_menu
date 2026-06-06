@@ -17,15 +17,15 @@ call_pylint()
 call_pystyle()
 {
   echo "### Call pydocstyle"
-  pydocstyle .
+  pydocstyle telegram_menu
   echo "### Call pycodestyle"
-  pycodestyle --max-line-length=120 .
+  pycodestyle --max-line-length=120 telegram_menu
 }
 
 call_mypy()
 {
   echo "### Call Mypy"
-  mypy --config-file mypy.ini .
+  mypy telegram_menu
 }
 
 call_isort()
@@ -93,7 +93,8 @@ call_check()
 
 call_release()
 {
-  python setup.py sdist
-  # python -m twine upload dist/*.tar.gz
+  rm -rf dist
+  python -m build
+  # python -m twine upload dist/*
   # pip install -U --index-url https://pypi.org/simple/ telegram_menu
 }

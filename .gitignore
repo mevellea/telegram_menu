@@ -11,6 +11,10 @@ build
 htmlcov
 coverage.json
 docs/_build
-dist/*.tar.gz
+dist
+*.whl
+*.tar.gz
 reports/*.txt
+.venv*
+venv*
 tests/arbitrarycallbackdatabot

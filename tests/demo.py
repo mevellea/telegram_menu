@@ -18,15 +18,20 @@
 
 """telegram_menu demonstrator."""
 
+import logging
 from pathlib import Path
 
 from telegram_menu import TelegramMenuSession
-from tests.test_connection import MyNavigationHandler, StartMessage, init_logger
+from tests.example_app import MyNavigationHandler, StartMessage
 
 
 def run() -> None:
     """Run the demo example."""
-    logger = init_logger(__name__)
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s [%(name)s] [%(levelname)s]  %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+    )
+    logger = logging.getLogger(__name__)
+    logging.getLogger("apscheduler").setLevel(logging.WARNING)
 
     with (Path.home() / ".telegram_menu" / "key.txt").open() as key_h:
         api_key = key_h.read().strip()

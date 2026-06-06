@@ -1,18 +1,3 @@
 -r requirements.txt
-# metrics
-black
-flake8
-isort
-mypy
-pycodestyle
-pydocstyle
-pylint
-rope
-setuptools
-twine
-types-emoji
-types-tzlocal
-# documentation
-Sphinx
-sphinx-autodoc-typehints
-sphinx-rtd-theme
+# install the package with its dev extras instead of listing tools twice
+-e .[dev,docs]

@@ -1,6 +1,6 @@
 # telegram_menu package
 
-<img src="https://img.shields.io/badge/python-3.8-blue.svg" alt="drawing"/> <img src="https://img.shields.io/badge/python-3.11-blue.svg" alt="drawing"/>
+<img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="drawing"/> <img src="https://img.shields.io/badge/python--telegram--bot-22.x-blue.svg" alt="drawing"/>
 <br/>
 A python library to generate navigation menus using Telegram Bot API.
 
@@ -13,6 +13,8 @@ Features:
 * Automatic deletion of messages when configurable timer has expired
 * Integration of HTML formatting + emojis
 
+> **_[2025] NOTE:_** version 3.0.0 targets Python 3.10+ and python-telegram-bot 22.x. Use a 2.x release for older interpreters.
+>
 > **_[2023-01] NOTE:_** asyncio support was added in version 2.0.0. Previous versions use the oldest non-asynchronous version of python-telegram-bot and are not compatible.
 
 Here is an example of navigation with menus and inlined buttons:
@@ -27,7 +29,7 @@ pip install telegram_menu
 
 ## Getting Started
 
-You first need to [create a Telegram bot], then you can refer to the sample code in ``tests\test_connection.py`` to run a complete use-case.
+You first need to [create a Telegram bot], then you can refer to the sample code in ``tests/example_app.py`` (run it with ``tests/demo.py``) for a complete use-case.
 
 A session can be started with the keyword ``/start`` from a Telegram client.
 

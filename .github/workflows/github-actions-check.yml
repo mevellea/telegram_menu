@@ -13,19 +13,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        python -m pip install flake8
-        pip install -r requirements-develop.txt
+        pip install -e .[dev]
     - name: Check with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
@@ -40,13 +39,16 @@ jobs:
         isort --check -l 120 .
     - name: Check with mypy
       run: |
-        mypy --config-file mypy.ini telegram_menu
+        mypy telegram_menu
     - name: Check with pylint
       run: |
         pylint telegram_menu tests -E
     - name: Check with pydocstyle
       run: |
-        pydocstyle .
+        pydocstyle telegram_menu
     - name: Check with pycodestyle
       run: |
-        pycodestyle --max-line-length=120 .
+        pycodestyle --max-line-length=120 telegram_menu
+    - name: Run tests
+      run: |
+        pytest -W ignore::DeprecationWarning

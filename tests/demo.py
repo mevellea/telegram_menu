@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright 2020-2023 Armel Mevellec
+# Copyright 2020-2026 Armel Mevellec
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,15 +18,20 @@
 
 """telegram_menu demonstrator."""
 
+import logging
 from pathlib import Path
 
 from telegram_menu import TelegramMenuSession
-from tests.test_connection import MyNavigationHandler, StartMessage, init_logger
+from tests.example_app import MyNavigationHandler, StartMessage
 
 
 def run() -> None:
     """Run the demo example."""
-    logger = init_logger(__name__)
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s [%(name)s] [%(levelname)s]  %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+    )
+    logger = logging.getLogger(__name__)
+    logging.getLogger("apscheduler").setLevel(logging.WARNING)
 
     with (Path.home() / ".telegram_menu" / "key.txt").open() as key_h:
         api_key = key_h.read().strip()

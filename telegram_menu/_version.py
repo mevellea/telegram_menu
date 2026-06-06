@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright 2020-2023 Armel Mevellec
+# Copyright 2020-2026 Armel Mevellec
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -22,8 +22,8 @@ __title__ = "telegram_menu"
 __description__ = "A python library to generate navigation menus using Telegram Bot API."
 __url__ = "https://github.com/mevellea/telegram_menu"
 __raw_url__ = "https://raw.githubusercontent.com/mevellea/telegram_menu/master"
-__version__ = "2.1.4"
+__version__ = "3.0.0"
 __author__ = "Armel Mevellec"
 __author_email__ = "mevellea@gmail.com"
 __license__ = "GNU GPLv3"
-__copyright__ = "Copyright 2020-2025 " + __author__
+__copyright__ = "Copyright 2020-2026 " + __author__

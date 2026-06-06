@@ -4,7 +4,6 @@
 
 """Sphinx documentation generation."""
 
-
 import os
 import sys
 import typing

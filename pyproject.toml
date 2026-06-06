@@ -1,0 +1,95 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "telegram_menu"
+description = "A python library to generate navigation menus using Telegram Bot API."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "GPL-3.0-only" }
+authors = [{ name = "Armel Mevellec", email = "mevellea@gmail.com" }]
+keywords = ["telegram", "bot", "menu", "navigation"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: OS Independent",
+    "Topic :: Software Development :: Libraries",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dynamic = ["version"]
+dependencies = [
+    "APScheduler>=3.6.0",
+    "emoji>=2.0.0",
+    "python-telegram-bot[callback-data,job-queue]>=22.0,<23.0",
+    "tzlocal>=4.0",
+    "validators>=0.20",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-cov",
+    "black",
+    "flake8",
+    "isort",
+    "mypy",
+    "pylint",
+    "pycodestyle",
+    "pydocstyle",
+    "types-tzlocal",
+    "build",
+    "twine",
+]
+docs = [
+    "Sphinx",
+    "sphinx-autodoc-typehints",
+    "sphinx-rtd-theme",
+]
+
+[project.urls]
+Homepage = "https://github.com/mevellea/telegram_menu"
+Documentation = "https://telegram-menu.readthedocs.io"
+Repository = "https://github.com/mevellea/telegram_menu"
+
+[tool.setuptools]
+packages = ["telegram_menu"]
+zip-safe = false
+
+[tool.setuptools.dynamic]
+version = { attr = "telegram_menu._version.__version__" }
+
+[tool.setuptools.package-data]
+telegram_menu = ["py.typed"]
+
+[tool.black]
+line-length = 120
+target-version = ["py310", "py311", "py312", "py313"]
+
+[tool.isort]
+profile = "black"
+line_length = 120
+skip_gitignore = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.mypy]
+python_version = "3.10"
+check_untyped_defs = true
+disallow_any_generics = true
+disallow_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+
+[[tool.mypy.overrides]]
+module = ["apscheduler.*", "tzlocal.*", "validators.*"]
+ignore_missing_imports = true

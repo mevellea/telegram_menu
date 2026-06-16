@@ -140,6 +140,33 @@ def test_web_app_inline_link_button(navigation) -> None:
     assert button.callback_data is None
 
 
+def test_copy_text_inline_button(navigation) -> None:
+    """A COPY button renders a CopyTextButton with the copied text (no callback)."""
+    message = OptionsAppMessage(navigation)
+    message.keyboard = [[]]
+    message.add_button(label="copy", btype=ButtonType.COPY, copy_text="secret-code")
+    button = message.gen_inline_keyboard_content().inline_keyboard[0][0]
+    assert button.callback_data is None
+    assert button.copy_text is not None
+    assert button.copy_text.text == "secret-code"
+
+
+def test_copy_text_defaults_to_label(navigation) -> None:
+    """A COPY button without explicit copy_text copies its own label."""
+    message = OptionsAppMessage(navigation)
+    message.keyboard = [[]]
+    message.add_button(label="ABC123", btype=ButtonType.COPY)
+    button = message.gen_inline_keyboard_content().inline_keyboard[0][0]
+    assert button.copy_text is not None
+    assert button.copy_text.text == "ABC123"
+
+
+def test_menu_button_copy_text_field() -> None:
+    """MenuButton exposes the new copy_text attribute (defaults to empty)."""
+    assert MenuButton("x").copy_text == ""
+    assert MenuButton("x", copy_text="y").copy_text == "y"
+
+
 def test_input_field_defaults_to_first_label(navigation) -> None:
     """When no input field is set, it defaults to the first button label."""
     message = StartMessage(navigation)

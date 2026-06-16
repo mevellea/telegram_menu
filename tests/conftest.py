@@ -53,6 +53,16 @@ def bot(message_ids: itertools.count) -> MagicMock:
     mock_bot.send_photo = AsyncMock(side_effect=_send)
     mock_bot.send_sticker = AsyncMock(side_effect=_send)
     mock_bot.send_poll = AsyncMock(side_effect=_send)
+    mock_bot.send_document = AsyncMock(side_effect=_send)
+    mock_bot.send_audio = AsyncMock(side_effect=_send)
+    mock_bot.send_video = AsyncMock(side_effect=_send)
+    mock_bot.send_voice = AsyncMock(side_effect=_send)
+
+    async def _send_group(*_args: object, **kwargs: object) -> list[SimpleNamespace]:
+        return [make_message(next(message_ids)) for _ in kwargs.get("media", [])]
+
+    mock_bot.send_media_group = AsyncMock(side_effect=_send_group)
+    mock_bot.set_message_reaction = AsyncMock(return_value=True)
     mock_bot.edit_message_text = AsyncMock(return_value=make_message(0))
     mock_bot.edit_message_caption = AsyncMock(return_value=make_message(0))
     mock_bot.delete_message = AsyncMock(return_value=True)

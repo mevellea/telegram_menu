@@ -7,12 +7,19 @@ A python library to generate navigation menus using Telegram Bot API.
 Features:
 
 * Menu navigation using tree structure, unlimited depth
-* Support for sending pictures (local file or url), stickers, notifications, webapps and polls
+* Support for sending pictures (local file or url), stickers, documents, audio, video, voice, albums, notifications, webapps and polls
+* Rich polls: quiz mode, multiple answers, anonymity and configurable lifetime
+* Emoji reactions on messages (`ButtonType.REACTION`)
+* Copy-to-clipboard buttons (`ButtonType.COPY`)
+* Animated message effects and link-preview control
+* Bot command menu and chat menu button configuration
 * Session manager with multiple users connecting to the same bot
 * Messages can read text input from the keyboard
 * Automatic deletion of messages when configurable timer has expired
 * Integration of HTML formatting + emojis
 
+> **_[2026] NOTE:_** version 3.1.0 adds new button/media types (reactions, copy buttons, documents/audio/video/voice, albums), rich polls, message effects, link-preview control and bot command/menu helpers, leveraging Bot API 9.x available in python-telegram-bot 22.x.
+>
 > **_[2025] NOTE:_** version 3.0.0 targets Python 3.10+ and python-telegram-bot 22.x. Use a 2.x release for older interpreters.
 >
 > **_[2023-01] NOTE:_** asyncio support was added in version 2.0.0. Previous versions use the oldest non-asynchronous version of python-telegram-bot and are not compatible.
@@ -129,6 +136,43 @@ poll_button = MenuButton(
     label=":closed_book:", callback=self.select_playlist, btype=ButtonType.POLL, args=self.get_playlists_arg()
 )
 self.keyboard.append([poll_button])
+```
+
+## New in 3.1.0 (Bot API 9.x)
+
+These features rely on capabilities available in python-telegram-bot 22.x.
+
+```python
+# Copy-to-clipboard button: pressing it copies 'copy_text' (or the label) on the client.
+self.add_button(label=":clipboard: Copy code", btype=ButtonType.COPY, copy_text="ABC-123")
+
+# Emoji reaction: the callback returns the emoji to set on the current message.
+self.add_button(label=":thumbs_up:", callback=lambda: ":thumbs_up:", btype=ButtonType.REACTION)
+
+# Extra media types: the callback returns a local path or a url.
+self.add_button(label="File", callback=self.get_doc, btype=ButtonType.DOCUMENT)   # also AUDIO / VIDEO / VOICE
+
+# Rich poll (quiz / multiple answers / lifetime) via an optional 3rd args element.
+quiz_opts = {"poll_type": "quiz", "correct_option_id": 1, "explanation": "2 + 2 = 4", "open_period": 30}
+self.add_button(label="Quiz", callback=self.on_answer, btype=ButtonType.POLL, args=["2 + 2?", ["3", "4"], quiz_opts])
+```
+
+Messages can also play an animated effect and control the link preview:
+
+```python
+super().__init__(navigation, self.LABEL, message_effect_id="5104841245755180586", disable_web_page_preview=True)
+```
+
+The session exposes album broadcasting and bot command/menu helpers:
+
+```python
+session = TelegramMenuSession(API_KEY)
+# register the slash command menu when the bot starts
+session.start(StartMessage, commands=[("start", "Start the bot"), ("help", "Show help")])
+
+# or, once running:
+await session.set_menu_button(web_app_url="https://example.com", web_app_text="Open app")
+await session.broadcast_media_group(["pic1.png", "https://example.com/pic2.png"])
 ```
 
 ## Structure

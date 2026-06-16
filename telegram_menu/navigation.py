@@ -25,7 +25,7 @@ import datetime
 import logging
 import mimetypes
 from pathlib import Path
-from typing import Any, Sequence, Type
+from typing import TYPE_CHECKING, Any, Sequence, Type, cast
 
 import telegram
 import telegram.error
@@ -33,7 +33,22 @@ import telegram.ext
 import tzlocal
 import validators
 from apscheduler.schedulers.base import BaseScheduler
-from telegram import Bot, Chat, InlineKeyboardMarkup, Message, ReplyKeyboardMarkup, Update
+from telegram import (
+    Bot,
+    BotCommand,
+    Chat,
+    InlineKeyboardMarkup,
+    InputMediaPhoto,
+    LinkPreviewOptions,
+    MenuButtonCommands,
+    MenuButtonDefault,
+    MenuButtonWebApp,
+    Message,
+    ReactionTypeEmoji,
+    ReplyKeyboardMarkup,
+    Update,
+    WebAppInfo,
+)
 from telegram.constants import ChatAction, ParseMode
 from telegram.ext import (
     Application,
@@ -48,6 +63,9 @@ from telegram.ext import (
 from . import _imaging
 from ._version import __raw_url__
 from .models import BaseMessage, ButtonType, Context, TypeCallback, call_callback, emoji_replace
+
+if TYPE_CHECKING:
+    from telegram._utils.types import CorrectOptionID
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +123,7 @@ class TelegramMenuSession:
         polling: bool = True,
         navigation_handler_class: Type[NavigationHandler] | None = None,
         stop_signals: Sequence[int] | None | object = _UNSET,
+        commands: list[tuple[str, str]] | None = None,
     ) -> None:
         """Set the start message and run the dispatcher.
 
@@ -114,6 +133,8 @@ class TelegramMenuSession:
             polling: if True, start polling updates from Telegram
             navigation_handler_class: optional class used to extend the base NavigationHandler
             stop_signals: signals that stop polling, forwarded to ``run_polling`` if provided
+            commands: optional list of ``(command, description)`` tuples registered as the
+                bot command menu once the application has started
         """
         self.start_message_class = start_message_class
         self.start_message_args = start_message_args
@@ -124,6 +145,13 @@ class TelegramMenuSession:
             raise NavigationException("start_message_args is not a list!")
         if not issubclass(self.navigation_handler_class, NavigationHandler):
             raise NavigationException("navigation_handler_class must be a NavigationHandler!")
+
+        if commands:
+            # register commands once the event loop is running and the bot is initialized
+            async def _post_init(_: Application) -> None:  # type: ignore[type-arg]
+                await self.set_bot_commands(commands)
+
+            self.application.post_init = _post_init
 
         if polling:
             # Application.run_polling() starts the job-queue scheduler inside the event
@@ -254,6 +282,42 @@ class TelegramMenuSession:
                 messages.append(msg)
         return messages
 
+    async def broadcast_document(self, document_path: str, notification: bool = True) -> list[Message]:
+        """Broadcast a document to all sessions."""
+        messages = []
+        for session in self.sessions:
+            msg = await session.send_document(document_path, notification=notification)
+            if msg is not None:
+                messages.append(msg)
+        return messages
+
+    async def broadcast_media_group(self, picture_paths: list[str], notification: bool = True) -> list[Message]:
+        """Broadcast an album of pictures to all sessions."""
+        messages: list[Message] = []
+        for session in self.sessions:
+            messages.extend(await session.send_media_group(picture_paths, notification=notification))
+        return messages
+
+    async def set_bot_commands(self, commands: list[tuple[str, str]]) -> bool:
+        """Register the bot command menu, from a list of ``(command, description)`` tuples."""
+        bot_commands = [BotCommand(command=command, description=description) for command, description in commands]
+        return await self.application.bot.set_my_commands(bot_commands)
+
+    async def set_menu_button(self, web_app_url: str = "", web_app_text: str = "Menu", reset: bool = False) -> bool:
+        """Set the chat menu button shown next to the input field.
+
+        With ``web_app_url`` it opens a web-app labelled ``web_app_text``; with ``reset``
+        it restores the default menu; otherwise it shows the bot command menu.
+        """
+        menu_button: MenuButtonWebApp | MenuButtonCommands | MenuButtonDefault
+        if reset:
+            menu_button = MenuButtonDefault()
+        elif web_app_url and validators.url(web_app_url):
+            menu_button = MenuButtonWebApp(text=web_app_text, web_app=WebAppInfo(url=web_app_url))
+        else:
+            menu_button = MenuButtonCommands()
+        return await self.application.bot.set_chat_menu_button(menu_button=menu_button)
+
 
 class NavigationHandler:
     """Navigation handler for a Telegram application."""
@@ -316,10 +380,20 @@ class NavigationHandler:
         keyboard = menu_message.gen_keyboard_content()
         if menu_message.picture:
             message = await self.send_photo(
-                menu_message.picture, notification=menu_message.notification, keyboard=keyboard, caption=content
+                menu_message.picture,
+                notification=menu_message.notification,
+                keyboard=keyboard,
+                caption=content,
+                message_effect_id=menu_message.message_effect_id,
             )
         else:
-            message = await self.send_message(content, keyboard, notification=menu_message.notification)
+            message = await self.send_message(
+                content,
+                keyboard,
+                notification=menu_message.notification,
+                message_effect_id=menu_message.message_effect_id,
+                disable_web_page_preview=menu_message.disable_web_page_preview,
+            )
         if message is None:
             return -1  # message was not sent, abort
         menu_message.is_alive()
@@ -361,10 +435,20 @@ class NavigationHandler:
         keyboard = message.gen_inline_keyboard_content()
         if message.picture:
             msg = await self.send_photo(
-                message.picture, notification=message.notification, caption=content, keyboard=keyboard
+                message.picture,
+                notification=message.notification,
+                caption=content,
+                keyboard=keyboard,
+                message_effect_id=message.message_effect_id,
             )
         else:
-            msg = await self.send_message(content, keyboard, message.notification)
+            msg = await self.send_message(
+                content,
+                keyboard,
+                message.notification,
+                message_effect_id=message.message_effect_id,
+                disable_web_page_preview=message.disable_web_page_preview,
+            )
         if msg is None:
             return -1  # message was not sent, abort
         message.message_id = msg.message_id
@@ -379,6 +463,8 @@ class NavigationHandler:
         content: str,
         keyboard: ReplyKeyboardMarkup | InlineKeyboardMarkup | None = None,
         notification: bool = True,
+        message_effect_id: str | None = None,
+        disable_web_page_preview: bool = False,
     ) -> Message:
         """Send a text message with HTML formatting."""
         return await self._bot.send_message(
@@ -387,6 +473,8 @@ class NavigationHandler:
             parse_mode=ParseMode.HTML,
             reply_markup=keyboard,
             disable_notification=not notification,
+            message_effect_id=message_effect_id or None,
+            link_preview_options=LinkPreviewOptions(is_disabled=True) if disable_web_page_preview else None,
         )
 
     async def edit_message(self, message: BaseMessage, context: Context | None = None) -> bool:
@@ -515,10 +603,18 @@ class NavigationHandler:
 
         if button.btype in (ButtonType.PICTURE, ButtonType.STICKER):
             await self._bot.send_chat_action(chat_id=self.chat_id, action=ChatAction.UPLOAD_PHOTO)
+        elif button.btype in (ButtonType.DOCUMENT, ButtonType.AUDIO):
+            await self._bot.send_chat_action(chat_id=self.chat_id, action=ChatAction.UPLOAD_DOCUMENT)
+        elif button.btype == ButtonType.VIDEO:
+            await self._bot.send_chat_action(chat_id=self.chat_id, action=ChatAction.UPLOAD_VIDEO)
+        elif button.btype == ButtonType.VOICE:
+            await self._bot.send_chat_action(chat_id=self.chat_id, action=ChatAction.RECORD_VOICE)
         elif button.btype == ButtonType.MESSAGE:
             await self._bot.send_chat_action(chat_id=self.chat_id, action=ChatAction.TYPING)
         elif button.btype == ButtonType.POLL:
-            await self.send_poll(question=button.args[0], options=button.args[1])
+            # optional 3rd argument: a dict of extra poll options (quiz, multi-answer, ...)
+            poll_options = button.args[2] if len(button.args) > 2 and isinstance(button.args[2], dict) else {}
+            await self.send_poll(question=button.args[0], options=button.args[1], **poll_options)
             self._poll_callback = button.callback
             await self._bot.answer_callback_query(callback_id, text="Select an answer...")
             return
@@ -543,6 +639,27 @@ class NavigationHandler:
         if button.btype == ButtonType.MESSAGE:
             await self.send_message(action_status, notification=button.notification)
             await self._bot.answer_callback_query(callback_id, text="Message sent!")
+            return
+        if button.btype == ButtonType.DOCUMENT:
+            await self.send_document(document_path=action_status, notification=button.notification)
+            await self._bot.answer_callback_query(callback_id, text="Document sent!")
+            return
+        if button.btype == ButtonType.AUDIO:
+            await self.send_audio(audio_path=action_status, notification=button.notification)
+            await self._bot.answer_callback_query(callback_id, text="Audio sent!")
+            return
+        if button.btype == ButtonType.VIDEO:
+            await self.send_video(video_path=action_status, notification=button.notification)
+            await self._bot.answer_callback_query(callback_id, text="Video sent!")
+            return
+        if button.btype == ButtonType.VOICE:
+            await self.send_voice(voice_path=action_status, notification=button.notification)
+            await self._bot.answer_callback_query(callback_id, text="Voice sent!")
+            return
+        if button.btype == ButtonType.REACTION:
+            # the callback returns the emoji to react with on the current message
+            await self.react(message_id=message.message_id, emoji=action_status)
+            await self._bot.answer_callback_query(callback_id, text="Reaction added!")
             return
         await self._bot.answer_callback_query(callback_id, text=action_status)
 
@@ -585,12 +702,27 @@ class NavigationHandler:
             logger.error("Picture path '%s' is invalid, replacing with default %s", picture_path, url_default)
             return url_default
 
+    @staticmethod
+    def _resolve_media(media_path: str) -> str | bytes:
+        """Resolve a media path to bytes (local file) or keep the URL as-is.
+
+        Unlike ``_picture_check_replace`` this does not enforce an image format, so it can
+        be reused for documents, audio, video and voice messages.
+        """
+        if validators.url(media_path):
+            return media_path
+        path = Path(media_path)
+        if path.is_file():
+            return path.read_bytes()
+        raise ValueError(f"Media path '{media_path}' is not a valid file or url")
+
     async def send_photo(
         self,
         picture_path: str,
         notification: bool = True,
         caption: str = "",
         keyboard: ReplyKeyboardMarkup | InlineKeyboardMarkup | None = None,
+        message_effect_id: str | None = None,
     ) -> Message | None:
         """Send a picture."""
         picture_obj = self._picture_check_replace(picture_path=picture_path)
@@ -602,10 +734,90 @@ class NavigationHandler:
                 reply_markup=keyboard,
                 disable_notification=not notification,
                 parse_mode=ParseMode.HTML,
+                message_effect_id=message_effect_id or None,
             )
         except telegram.error.BadRequest as error:
             logger.error("Failed to send picture %s: %s", picture_path, error)
         return None
+
+    async def send_document(self, document_path: str, notification: bool = True, caption: str = "") -> Message | None:
+        """Send a document (any file type)."""
+        try:
+            return await self._bot.send_document(
+                chat_id=self.chat_id,
+                document=self._resolve_media(document_path),
+                caption=caption,
+                disable_notification=not notification,
+                parse_mode=ParseMode.HTML,
+            )
+        except (telegram.error.BadRequest, ValueError) as error:
+            logger.error("Failed to send document %s: %s", document_path, error)
+        return None
+
+    async def send_audio(self, audio_path: str, notification: bool = True, caption: str = "") -> Message | None:
+        """Send an audio file."""
+        try:
+            return await self._bot.send_audio(
+                chat_id=self.chat_id,
+                audio=self._resolve_media(audio_path),
+                caption=caption,
+                disable_notification=not notification,
+                parse_mode=ParseMode.HTML,
+            )
+        except (telegram.error.BadRequest, ValueError) as error:
+            logger.error("Failed to send audio %s: %s", audio_path, error)
+        return None
+
+    async def send_video(self, video_path: str, notification: bool = True, caption: str = "") -> Message | None:
+        """Send a video file."""
+        try:
+            return await self._bot.send_video(
+                chat_id=self.chat_id,
+                video=self._resolve_media(video_path),
+                caption=caption,
+                disable_notification=not notification,
+                parse_mode=ParseMode.HTML,
+            )
+        except (telegram.error.BadRequest, ValueError) as error:
+            logger.error("Failed to send video %s: %s", video_path, error)
+        return None
+
+    async def send_voice(self, voice_path: str, notification: bool = True) -> Message | None:
+        """Send a voice message (.ogg/.opus)."""
+        try:
+            return await self._bot.send_voice(
+                chat_id=self.chat_id,
+                voice=self._resolve_media(voice_path),
+                disable_notification=not notification,
+            )
+        except (telegram.error.BadRequest, ValueError) as error:
+            logger.error("Failed to send voice %s: %s", voice_path, error)
+        return None
+
+    async def send_media_group(self, picture_paths: list[str], notification: bool = True) -> list[Message]:
+        """Send several pictures as a single album (media group)."""
+        media = [InputMediaPhoto(media=self._picture_check_replace(path)) for path in picture_paths]
+        try:
+            result = await self._bot.send_media_group(
+                chat_id=self.chat_id, media=media, disable_notification=not notification
+            )
+            return list(result)
+        except telegram.error.BadRequest as error:
+            logger.error("Failed to send media group: %s", error)
+        return []
+
+    async def react(self, message_id: int, emoji: str, is_big: bool = False) -> bool:
+        """Set an emoji reaction on a message."""
+        try:
+            return await self._bot.set_message_reaction(
+                chat_id=self.chat_id,
+                message_id=message_id,
+                reaction=[ReactionTypeEmoji(emoji=emoji_replace(emoji))],
+                is_big=is_big,
+            )
+        except telegram.error.BadRequest as error:
+            logger.error("Failed to react with %s on message %s: %s", emoji, message_id, error)
+        return False
 
     async def send_sticker(self, sticker_path: str, notification: bool = True) -> Message | None:
         """Send a sticker."""
@@ -622,24 +834,51 @@ class NavigationHandler:
         """Get the message from the message queue matching the given label."""
         return next((x for x in self._message_queue if x.label == label_message), None)
 
-    async def send_poll(self, question: str, options: list[str]) -> None:
-        """Send a poll to the user with a question and options."""
+    async def send_poll(
+        self,
+        question: str,
+        options: list[str],
+        is_anonymous: bool = False,
+        allows_multiple_answers: bool = False,
+        poll_type: str = "regular",
+        correct_option_id: int | None = None,
+        explanation: str | None = None,
+        open_period: int | None = None,
+    ) -> None:
+        """Send a poll to the user with a question and options.
+
+        Args:
+            question: poll question
+            options: list of answer options
+            is_anonymous: hide who voted for what
+            allows_multiple_answers: allow selecting several options (regular polls only)
+            poll_type: ``"regular"`` or ``"quiz"`` (a quiz has a single correct answer)
+            correct_option_id: index of the correct answer, required for quiz polls
+            explanation: text shown when an incorrect quiz answer is selected
+            open_period: poll lifetime in seconds (defaults to ``POLL_DEADLINE``)
+        """
         if self.scheduler.get_job(self.poll_name) is not None:
             await self.poll_delete()
         options = [emoji_replace(option) for option in options]
+        open_period = open_period if open_period is not None else self.POLL_DEADLINE
         self._poll = await self._bot.send_poll(
             chat_id=self.chat_id,
             question=emoji_replace(question),
             options=options,
-            is_anonymous=False,
-            open_period=self.POLL_DEADLINE,
+            is_anonymous=is_anonymous,
+            allows_multiple_answers=allows_multiple_answers,
+            type=poll_type,
+            correct_option_id=cast("CorrectOptionID | None", correct_option_id),
+            explanation=emoji_replace(explanation) if explanation else None,
+            explanation_parse_mode=ParseMode.HTML if explanation else None,
+            open_period=open_period,
         )
         self.scheduler.add_job(
             self.poll_delete,
             "date",
             id=self.poll_name,
             next_run_time=datetime.datetime.now(tz=tzlocal.get_localzone())
-            + datetime.timedelta(seconds=self.POLL_DEADLINE + 1),
+            + datetime.timedelta(seconds=open_period + 1),
             replace_existing=True,
         )
 

@@ -32,7 +32,14 @@ from typing import TYPE_CHECKING, Any, Callable, Coroutine, Optional, Union
 import emoji
 import tzlocal
 import validators
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup, WebAppInfo
+from telegram import (
+    CopyTextButton,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardMarkup,
+    WebAppInfo,
+)
 from telegram.ext import ContextTypes
 
 if TYPE_CHECKING:
@@ -85,6 +92,12 @@ class ButtonType(Enum):
     STICKER = auto()
     POLL = auto()
     LINK = auto()
+    REACTION = auto()
+    COPY = auto()
+    DOCUMENT = auto()
+    AUDIO = auto()
+    VIDEO = auto()
+    VOICE = auto()
 
 
 @dataclass
@@ -98,6 +111,8 @@ class MenuButton:
         args: argument passed to the callback
         notification: send a notification to the user
         web_app_url: URL of an associated web-app
+        copy_text: text copied to the clipboard when the button is pressed
+            (creates a ``CopyTextButton``, see ``ButtonType.COPY``)
     """
 
     label: str
@@ -106,6 +121,7 @@ class MenuButton:
     args: Any = None
     notification: bool = True
     web_app_url: str = ""
+    copy_text: str = ""
 
     def __post_init__(self) -> None:
         """Expand emoji aliases in the label."""
@@ -124,6 +140,8 @@ class BaseMessage(ABC):
         home_after: go back to home menu after executing the action
         notification: show a notification in the Telegram interface
         input_field: placeholder shown in the input field
+        message_effect_id: optional animated effect played when the message is sent
+        disable_web_page_preview: disable the link preview for messages containing URLs
     """
 
     EXPIRING_DELAY = 12  # minutes
@@ -141,6 +159,8 @@ class BaseMessage(ABC):
         home_after: bool = False,
         notification: bool = True,
         input_field: str = "",
+        message_effect_id: str = "",
+        disable_web_page_preview: bool = False,
         **args: Any,
     ) -> None:
         """Init BaseMessage class."""
@@ -151,6 +171,8 @@ class BaseMessage(ABC):
         self.notification = notification
         self.navigation = navigation
         self.input_field = input_field
+        self.message_effect_id = message_effect_id
+        self.disable_web_page_preview = disable_web_page_preview
 
         # previous values are used to check if it has changed, to skip sending identical message
         self.keyboard_previous: TypeKeyboard = [[]]
@@ -202,6 +224,7 @@ class BaseMessage(ABC):
         notification: bool = True,
         new_row: bool = False,
         web_app_url: str = "",
+        copy_text: str = "",
     ) -> None:
         """Add a button to the keyboard.
 
@@ -213,6 +236,7 @@ class BaseMessage(ABC):
             notification: send a notification to the user
             new_row: start a new row before adding this button
             web_app_url: URL of an associated web-app
+            copy_text: text copied to the clipboard when the button is pressed
         """
         # arrange buttons per row, depending on the inlined property
         buttons_per_row = 4 if self.inlined else 2
@@ -220,7 +244,7 @@ class BaseMessage(ABC):
         if not isinstance(self.keyboard, list) or not self.keyboard:
             self.keyboard = [[]]
 
-        button = MenuButton(label, callback, btype, args, notification, web_app_url)
+        button = MenuButton(label, callback, btype, args, notification, web_app_url, copy_text)
         # add a new row if requested or if the last row is full, otherwise append to the last row
         if new_row or len(self.keyboard[-1]) == buttons_per_row:
             self.keyboard.append([button])
@@ -260,7 +284,13 @@ class BaseMessage(ABC):
             for button in row:
                 if self.SEPARATOR in self.label or self.SEPARATOR in button.label:
                     raise ValueError(f"Forbidden character: {self.SEPARATOR}")
-                if button.web_app_url and validators.url(button.web_app_url):
+                if button.copy_text or button.btype == ButtonType.COPY:
+                    # copy-to-clipboard buttons carry the text to copy, not callback_data
+                    copy_value = button.copy_text or button.label
+                    button_array.append(
+                        InlineKeyboardButton(text=button.label, copy_text=CopyTextButton(text=copy_value))
+                    )
+                elif button.web_app_url and validators.url(button.web_app_url):
                     if button.btype == ButtonType.LINK:
                         button_array.append(InlineKeyboardButton(text=button.label, url=button.web_app_url))
                     else:

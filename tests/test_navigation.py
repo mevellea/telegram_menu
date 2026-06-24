@@ -286,3 +286,96 @@ def test_separator_constant() -> None:
     """The reserved separator is exposed on BaseMessage and ButtonType is an enum."""
     assert BaseMessage.SEPARATOR == "##"
     assert ButtonType.POLL in ButtonType
+
+
+# --------------------------------------------------------------------------- new media
+
+
+@pytest.mark.asyncio
+async def test_send_document_uses_bot_send_document(navigation, bot) -> None:
+    """send_document forwards a resolved url to the bot."""
+    msg = await navigation.send_document("https://example.com/file.pdf")
+    assert msg is not None
+    bot.send_document.assert_awaited_once()
+    assert bot.send_document.await_args.kwargs["document"] == "https://example.com/file.pdf"
+
+
+@pytest.mark.asyncio
+async def test_send_document_local_file_reads_bytes(navigation, bot) -> None:
+    """A local file path is read as bytes before being sent."""
+    await navigation.send_document(LOCAL_PICTURE)
+    assert isinstance(bot.send_document.await_args.kwargs["document"], (bytes, bytearray))
+
+
+@pytest.mark.asyncio
+async def test_send_document_invalid_path_returns_none(navigation, bot) -> None:
+    """An invalid media path is swallowed and returns None."""
+    assert await navigation.send_document("not_a_file_or_url") is None
+    bot.send_document.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_send_video_bad_request_returns_none(navigation, bot) -> None:
+    """send_video swallows a BadRequest and returns None."""
+    bot.send_video = AsyncMock(side_effect=telegram.error.BadRequest("boom"))
+    assert await navigation.send_video("https://example.com/clip.mp4") is None
+
+
+@pytest.mark.asyncio
+async def test_send_media_group_builds_input_media(navigation, bot) -> None:
+    """send_media_group sends one InputMediaPhoto per picture."""
+    msgs = await navigation.send_media_group([LOCAL_PICTURE, "https://example.com/a.png"])
+    bot.send_media_group.assert_awaited_once()
+    media = bot.send_media_group.await_args.kwargs["media"]
+    assert all(isinstance(item, telegram.InputMediaPhoto) for item in media)
+    assert len(msgs) == 2
+
+
+# --------------------------------------------------------------------------- reactions
+
+
+@pytest.mark.asyncio
+async def test_react_sets_message_reaction(navigation, bot) -> None:
+    """react sends an emoji reaction on the given message."""
+    assert await navigation.react(message_id=42, emoji=":thumbsup:") is True
+    bot.set_message_reaction.assert_awaited_once()
+    reaction = bot.set_message_reaction.await_args.kwargs["reaction"]
+    assert reaction[0].emoji == "👍"
+
+
+# --------------------------------------------------------------------------- enriched polls
+
+
+@pytest.mark.asyncio
+async def test_send_poll_quiz_options(navigation, bot) -> None:
+    """A quiz poll forwards type, correct option and open period."""
+    await navigation.send_poll(
+        question="2+2?",
+        options=["3", "4"],
+        poll_type="quiz",
+        correct_option_id=1,
+        allows_multiple_answers=False,
+        open_period=30,
+    )
+    kwargs = bot.send_poll.await_args.kwargs
+    assert kwargs["type"] == "quiz"
+    assert kwargs["correct_option_id"] == 1
+    assert kwargs["open_period"] == 30
+
+
+# --------------------------------------------------------------------------- message options
+
+
+@pytest.mark.asyncio
+async def test_send_message_disables_link_preview(navigation, bot) -> None:
+    """send_message builds LinkPreviewOptions when previews are disabled."""
+    await navigation.send_message("see https://example.com", disable_web_page_preview=True)
+    options = bot.send_message.await_args.kwargs["link_preview_options"]
+    assert options is not None and options.is_disabled is True
+
+
+@pytest.mark.asyncio
+async def test_send_message_forwards_effect(navigation, bot) -> None:
+    """send_message forwards the message effect id."""
+    await navigation.send_message("party", message_effect_id="123")
+    assert bot.send_message.await_args.kwargs["message_effect_id"] == "123"

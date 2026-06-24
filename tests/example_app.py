@@ -107,10 +107,23 @@ class OptionsAppMessage(BaseMessage):
         """Display the poll answer."""
         logging.info("Answer is %s", poll_answer)
 
+    def reaction_button(self) -> str:
+        """Return the emoji used to react to this message."""
+        self._toggle_play_button()
+        return ":thumbs_up:"
+
+    def document_button(self) -> str:
+        """Return a document url to send."""
+        self._toggle_play_button()
+        return f"{__raw_url__}/README.md"
+
     def update(self, context: Context | None = None) -> str:
         """Update message content."""
         poll_question = "Select one option:"
         poll_choices = [":play_button: Option " + str(x) for x in range(6)]
+        quiz_question = "What is 2 + 2?"
+        quiz_choices = ["3", "4", "5"]
+        quiz_options = {"poll_type": "quiz", "correct_option_id": 1, "explanation": "2 + 2 = 4"}
         play_pause_button = ":play_button:" if self.play_pause else ":pause_button:"
         self.keyboard = [
             [
@@ -123,6 +136,12 @@ class OptionsAppMessage(BaseMessage):
         self.add_button(":door:", callback=self.text_button, btype=ButtonType.MESSAGE)
         self.add_button(":speaker_medium_volume:", callback=self.action_button)
         self.add_button(":question:", self.action_poll, btype=ButtonType.POLL, args=[poll_question, poll_choices])
+        self.add_button(
+            ":brain:", self.action_poll, btype=ButtonType.POLL, args=[quiz_question, quiz_choices, quiz_options]
+        )
+        self.add_button(":thumbs_up:", callback=self.reaction_button, btype=ButtonType.REACTION)
+        self.add_button(":page_facing_up:", callback=self.document_button, btype=ButtonType.DOCUMENT)
+        self.add_button(":clipboard:", copy_text="telegram_menu", btype=ButtonType.COPY)
         return "Status updated!"
 
 
@@ -218,6 +237,13 @@ class StartMessage(BaseMessage):
 
     LABEL = "start"
     URL = "https://python-telegram-bot.org/static/webappbot"
+
+    # Bot command menu shown next to the input field, registered via
+    # TelegramMenuSession.start(commands=...). Only '/start' has a handler here; add your
+    # own telegram.ext handlers on the application to support additional commands.
+    COMMANDS = [
+        ("start", "Start the bot and show the main menu"),
+    ]
 
     def __init__(self, navigation: NavigationHandler, message_args: Optional[List[UpdateCallback]] = None) -> None:
         """Init StartMessage class."""

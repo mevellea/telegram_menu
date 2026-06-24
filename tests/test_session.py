@@ -20,7 +20,10 @@
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
+from telegram import BotCommand, MenuButtonCommands, MenuButtonWebApp
 
 from telegram_menu import BaseMessage, MenuButton, NavigationException, TelegramMenuSession
 
@@ -76,3 +79,38 @@ def test_start_without_polling_does_not_start_scheduler_off_loop(session: Telegr
     """
     session.start(StartMessage, polling=False)
     assert session.scheduler.running is False
+
+
+@pytest.mark.asyncio
+async def test_set_bot_commands(session: TelegramMenuSession, monkeypatch) -> None:
+    """set_bot_commands builds BotCommand objects and forwards them to the bot."""
+    # ExtBot is frozen, so replace the whole bot with a mock instead of patching a method
+    mock_bot = MagicMock(name="Bot")
+    mock_bot.set_my_commands = AsyncMock(return_value=True)
+    monkeypatch.setattr(session.application, "bot", mock_bot)
+    await session.set_bot_commands([("start", "Start the bot"), ("help", "Show help")])
+    commands = mock_bot.set_my_commands.await_args.args[0]
+    assert all(isinstance(command, BotCommand) for command in commands)
+    assert [command.command for command in commands] == ["start", "help"]
+
+
+@pytest.mark.asyncio
+async def test_set_menu_button_webapp(session: TelegramMenuSession, monkeypatch) -> None:
+    """set_menu_button with a url creates a web-app menu button."""
+    mock_bot = MagicMock(name="Bot")
+    mock_bot.set_chat_menu_button = AsyncMock(return_value=True)
+    monkeypatch.setattr(session.application, "bot", mock_bot)
+    await session.set_menu_button(web_app_url="https://example.com", web_app_text="Open")
+    menu_button = mock_bot.set_chat_menu_button.await_args.kwargs["menu_button"]
+    assert isinstance(menu_button, MenuButtonWebApp)
+    assert menu_button.text == "Open"
+
+
+@pytest.mark.asyncio
+async def test_set_menu_button_commands(session: TelegramMenuSession, monkeypatch) -> None:
+    """set_menu_button without a url falls back to the command menu button."""
+    mock_bot = MagicMock(name="Bot")
+    mock_bot.set_chat_menu_button = AsyncMock(return_value=True)
+    monkeypatch.setattr(session.application, "bot", mock_bot)
+    await session.set_menu_button()
+    assert isinstance(mock_bot.set_chat_menu_button.await_args.kwargs["menu_button"], MenuButtonCommands)
